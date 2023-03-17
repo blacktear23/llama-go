@@ -97,8 +97,6 @@ struct llama_state {
 
 // load the model's weights from a file
 bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab & vocab, int n_ctx) {
-//    fprintf(stderr, "%s: loading model from '%s' - please wait ...\n", __func__, fname.c_str());
-
     std::vector<char> f_buf(1024*1024);
 
     auto fin = std::ifstream(fname, std::ios::binary);
@@ -138,18 +136,7 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
 
         n_ff = ((2*(4*hparams.n_embd)/3 + hparams.n_mult - 1)/hparams.n_mult)*hparams.n_mult;
         n_parts = LLAMA_N_PARTS.at(hparams.n_embd);
-/*
-        fprintf(stderr, "%s: n_vocab = %d\n", __func__, hparams.n_vocab);
-        fprintf(stderr, "%s: n_ctx   = %d\n", __func__, hparams.n_ctx);
-        fprintf(stderr, "%s: n_embd  = %d\n", __func__, hparams.n_embd);
-        fprintf(stderr, "%s: n_mult  = %d\n", __func__, hparams.n_mult);
-        fprintf(stderr, "%s: n_head  = %d\n", __func__, hparams.n_head);
-        fprintf(stderr, "%s: n_layer = %d\n", __func__, hparams.n_layer);
-        fprintf(stderr, "%s: n_rot   = %d\n", __func__, hparams.n_rot);
-        fprintf(stderr, "%s: f16     = %d\n", __func__, hparams.f16);
-        fprintf(stderr, "%s: n_ff    = %d\n", __func__, n_ff);
-        fprintf(stderr, "%s: n_parts = %d\n", __func__, n_parts);
-*/    }
+    }
 
     // load vocab
     {
@@ -171,10 +158,6 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
 
             vocab.token_to_id[word] = i;
             vocab.id_to_token[i] = word;
-
-            //if (i < 30000) {
-            //    fprintf(stderr, "%s: vocab[%d] = '%s'\n", __func__, i, word.c_str());
-            //}
         }
     }
 
@@ -231,8 +214,6 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
         ctx_size += n_ctx*n_layer*n_embd*ggml_type_sizef(GGML_TYPE_F32); // memory_v
 
         ctx_size += (5 + 10*n_layer)*256; // object overhead
-
-//        fprintf(stderr, "%s: ggml ctx size = %6.2f MB\n", __func__, ctx_size/(1024.0*1024.0));
     }
 
     // create the ggml context
@@ -318,8 +299,6 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
         model.memory_v = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_elements);
 
         const size_t memory_size = ggml_nbytes(model.memory_k) + ggml_nbytes(model.memory_v);
-
-//        fprintf(stderr, "%s: memory_size = %8.2f MB, n_mem = %d\n", __func__, memory_size/1024.0/1024.0, n_mem);
     }
 
     const size_t file_offset = fin.tellg();
@@ -337,8 +316,6 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
             fname_part += "." + std::to_string(i);
         }
 
-//        fprintf(stderr, "%s: loading model part %d/%d from '%s'\n", __func__, i+1, n_parts, fname_part.c_str());
-
         fin = std::ifstream(fname_part, std::ios::binary);
         fin.rdbuf()->pubsetbuf(f_buf.data(), f_buf.size());
         fin.seekg(file_offset);
@@ -347,8 +324,6 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
         {
             int n_tensors = 0;
             size_t total_size = 0;
-
-//            fprintf(stderr, "%s: ", __func__);
 
             while (true) {
                 int32_t n_dims;
@@ -510,19 +485,8 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
 
                     total_size += ggml_nbytes(tensor)/n_parts;
                 }
-/*
-                //fprintf(stderr, "%42s - [%5d, %5d], type = %6s, %6.2f MB\n", name.data(), ne[0], ne[1], ftype == 0 ? "float" : "f16", ggml_nbytes(tensor)/1024.0/1024.0);
-                if (++n_tensors % 8 == 0) {
-                    fprintf(stderr, ".");
-                    fflush(stderr);
-                }*/
             }
-/*
-            fprintf(stderr, " done\n");
-
-            fprintf(stderr, "%s: model size = %8.2f MB / num tensors = %d\n", __func__, total_size/1024.0/1024.0, n_tensors);
-*/        }
-
+        }
         fin.close();
     }
 
@@ -566,7 +530,6 @@ bool llama_eval(
 
     if (mem_per_token > 0 && mem_per_token*N > buf_size) {
         const size_t buf_size_new = 1.1*(mem_per_token*N); // add 10% to account for ggml object overhead
-        //fprintf(stderr, "\n%s: reallocating buffer from %zu to %zu bytes\n", __func__, buf_size, buf_size_new);
 
         // reallocate
         buf_size = buf_size_new;
@@ -758,7 +721,6 @@ bool llama_eval(
     if (mem_per_token == 0) {
         mem_per_token = ggml_used_mem(ctx0)/N;
     }
-    //fprintf(stderr, "used_mem = %zu\n", ggml_used_mem(ctx0));
 
     ggml_free(ctx0);
 
@@ -780,7 +742,7 @@ void sigint_handler(int signo) {
 }
 #endif
 
-const char * llama_print_system_info(void) {
+char * llama_print_system_info(void) {
     static std::string s;
 
     s  = "";
@@ -797,44 +759,12 @@ const char * llama_print_system_info(void) {
     s += "SSE3 = "      + std::to_string(ggml_cpu_has_sse3())      + " | ";
     s += "VSX = "       + std::to_string(ggml_cpu_has_vsx())       + " | ";
 
-    return s.c_str();
+    return const_cast<char*>(s.c_str());
 }
-/*
-int main(int argc, char ** argv) {
-    ggml_time_init();
-    const int64_t t_main_start_us = ggml_time_us();
 
-    gpt_params params;
-    params.model = "models/llama-7B/ggml-model.bin";
-
-    if (gpt_params_parse(argc, argv, params) == false) {
-        return 1;
-    }
-
-    if (params.seed < 0) {
-        params.seed = time(NULL);
-    }
-
-    fprintf(stderr, "%s: seed = %d\n", __func__, params.seed);
-
-    std::mt19937 rng(params.seed);
-    if (params.prompt.empty()) {
-        params.prompt = gpt_random_prompt(rng);
-    }
-
-//    params.prompt = R"(// this function checks if the number n is prime
-//bool is_prime(int n) {)";
-
-    int64_t t_load_us = 0;
-
-    gpt_vocab vocab;
-    llama_model model;
-
- */
-
+// load the model
 int llama_bootstrap(const char *model_path, void* state_pr, int32_t n_ctx)
-    // load the model
-    {
+{
         ggml_time_init();
         llama_state* state = (llama_state*) state_pr;
 
@@ -846,16 +776,9 @@ int llama_bootstrap(const char *model_path, void* state_pr, int32_t n_ctx)
 
         state->timing.t_load_us = ggml_time_us() - t_start_us;
         return 0;
-    }
-/*
-    // print system information
-    {
-        fprintf(stderr, "\n");
-        fprintf(stderr, "system_info: n_threads = %d / %d | %s\n",
-                params.n_threads, std::thread::hardware_concurrency(), llama_print_system_info());
-    }
-*/
-int llama_predict(void* params_ptr, void* state_pr) {
+}
+
+int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
     gpt_params params = *(gpt_params*) params_ptr;
     llama_state state = *(llama_state*) state_pr;
     gpt_vocab vocab = state.vocab;
@@ -866,7 +789,7 @@ int llama_predict(void* params_ptr, void* state_pr) {
         params.seed = time(NULL);
     }
     std::mt19937 rng(params.seed);
-    
+
     int n_past = 0;
 
     state.timing.t_sample_us = 0;
@@ -876,44 +799,13 @@ int llama_predict(void* params_ptr, void* state_pr) {
 
     // tokenize the prompt
     std::vector<gpt_vocab::id> embd_inp = ::llama_tokenize(vocab, params.prompt, true);
+    size_t input_size = embd_inp.size();
 
     params.n_predict = std::min(params.n_predict, model.hparams.n_ctx - (int) embd_inp.size());
 
     // tokenize the reverse prompt
     std::vector<gpt_vocab::id> antiprompt_inp = ::llama_tokenize(vocab, params.antiprompt, false);
 
-    fprintf(stderr, "\n");
-    /*fprintf(stderr, "%s: prompt: '%s'\n", __func__, params.prompt.c_str());
-    fprintf(stderr, "%s: number of tokens in prompt = %zu\n", __func__, embd_inp.size());
-    for (int i = 0; i < (int) embd_inp.size(); i++) {
-        fprintf(stderr, "%6d -> '%s'\n", embd_inp[i], vocab.id_to_token.at(embd_inp[i]).c_str());
-    }
-    fprintf(stderr, "\n");
-    if (params.interactive) {
-#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
-        struct sigaction sigint_action;
-        sigint_action.sa_handler = sigint_handler;
-        sigemptyset (&sigint_action.sa_mask);
-        sigint_action.sa_flags = 0;
-        sigaction(SIGINT, &sigint_action, NULL);
-#elif defined (_WIN32)
-        signal(SIGINT, sigint_handler);
-#endif
-
-        fprintf(stderr, "%s: interactive mode on.\n", __func__);
-
-        if(antiprompt_inp.size()) {
-            fprintf(stderr, "%s: reverse prompt: '%s'\n", __func__, params.antiprompt.c_str());
-            fprintf(stderr, "%s: number of tokens in reverse prompt = %zu\n", __func__, antiprompt_inp.size());
-            for (int i = 0; i < (int) antiprompt_inp.size(); i++) {
-                fprintf(stderr, "%6d -> '%s'\n", antiprompt_inp[i], vocab.id_to_token.at(antiprompt_inp[i]).c_str());
-            }
-            fprintf(stderr, "\n");
-        }
-    }
-    fprintf(stderr, "sampling parameters: temp = %f, top_k = %d, top_p = %f, repeat_last_n = %i, repeat_penalty = %f\n", params.temp, params.top_k, params.top_p, params.repeat_last_n, params.repeat_penalty);
-    fprintf(stderr, "\n\n");
-*/
     std::vector<gpt_vocab::id> embd;
 
     // determine the required inference memory per token:
@@ -924,29 +816,9 @@ int llama_predict(void* params_ptr, void* state_pr) {
     std::vector<gpt_vocab::id> last_n_tokens(last_n_size);
     std::fill(last_n_tokens.begin(), last_n_tokens.end(), 0);
 
-
-    if (params.interactive) {
-        fprintf(stderr, "== Running in interactive mode. ==\n"
-#if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__)) || defined (_WIN32)
-               " - Press Ctrl+C to interject at any time.\n"
-#endif
-               " - Press Return to return control to LLaMa.\n"
-               " - If you want to submit another line, end your input in '\\'.\n");
-    }
-
     int remaining_tokens = params.n_predict;
     int input_consumed = 0;
     bool input_noecho = false;
-
-    // prompt user immediately after the starting prompt has been loaded
-    if (params.interactive_start) {
-        is_interacting = true;
-    }
-
-    // set the color for the prompt which will be output initially
-    if (params.use_color) {
-        printf(ANSI_COLOR_YELLOW);
-    }
 
     while (remaining_tokens > 0) {
         // predict
@@ -954,7 +826,6 @@ int llama_predict(void* params_ptr, void* state_pr) {
             const int64_t t_start_us = ggml_time_us();
 
             if (!llama_eval(model, params.n_threads, n_past, embd, logits, mem_per_token)) {
-//                fprintf(stderr, "Failed to predict\n");
                 return 1;
             }
 
@@ -1005,95 +876,30 @@ int llama_predict(void* params_ptr, void* state_pr) {
                     break;
                 }
             }
-
-            // reset color to default if we there is no pending user input
-            if (!input_noecho && params.use_color && embd_inp.size() == input_consumed) {
-                printf(ANSI_COLOR_RESET);
-            }
         }
 
         // display text
         if (!input_noecho) {
-            for (auto id : embd) {
-                printf("%s", vocab.id_to_token[id].c_str());
-            }
-            fflush(stdout);
-        }
-
-        // in interactive mode, and not currently processing queued inputs;
-        // check if we should prompt the user for more
-        if (params.interactive && embd_inp.size() <= input_consumed) {
-            // check for reverse prompt
-            if (antiprompt_inp.size() && std::equal(antiprompt_inp.rbegin(), antiprompt_inp.rend(), last_n_tokens.rbegin())) {
-                // reverse prompt found
-                is_interacting = true;
-            }
-            if (is_interacting) {
-                // currently being interactive
-                bool another_line=true;
-                while (another_line) {
-                    fflush(stdout);
-                    char buf[256] = {0};
-                    int n_read;
-                    if(params.use_color) printf(ANSI_BOLD ANSI_COLOR_GREEN);
-                    if (scanf("%255[^\n]%n%*c", buf, &n_read) <= 0) {
-                        // presumable empty line, consume the newline
-                        scanf("%*c");
-                        n_read=0;
+            if (!cb) {
+                printf("No Callback");
+                fflush(stdout);
+            } else {
+                for (auto id : embd) {
+                    if (input_size > 0) {
+                        input_size--;
+                        continue;
                     }
-                    if(params.use_color) printf(ANSI_COLOR_RESET);
-
-                    if (n_read > 0 && buf[n_read-1]=='\\') {
-                        another_line = true;
-                        buf[n_read-1] = '\n';
-                        buf[n_read] = 0;
-                    } else {
-                        another_line = false;
-                        buf[n_read] = '\n';
-                        buf[n_read+1] = 0;
-                    }
-
-                    std::vector<gpt_vocab::id> line_inp = ::llama_tokenize(vocab, buf, false);
-                    embd_inp.insert(embd_inp.end(), line_inp.begin(), line_inp.end());
-
-                    remaining_tokens -= line_inp.size();
-
-                    input_noecho = true; // do not echo this again
+                    const char * word = vocab.id_to_token[id].c_str();
+                    prompt_callback_bridge(cb, const_cast<char*>(word));
                 }
-
-                is_interacting = false;
             }
         }
 
         // end of text token
         if (embd.back() == 2) {
-//            fprintf(stderr, " [end of text]\n");
             return 2;
         }
     }
-/*
-#if defined (_WIN32)
-    signal(SIGINT, SIG_DFL);
-#endif
-
-    // report timing
-    {
-        const int64_t t_main_end_us = ggml_time_us();
-
-        fprintf(stderr, "\n\n");
-        fprintf(stderr, "%s: mem per token = %8zu bytes\n", __func__, mem_per_token);
-        fprintf(stderr, "%s:     load time = %8.2f ms\n", __func__, t_load_us/1000.0f);
-        fprintf(stderr, "%s:   sample time = %8.2f ms\n", __func__, t_sample_us/1000.0f);
-        fprintf(stderr, "%s:  predict time = %8.2f ms / %.2f ms per token\n", __func__, t_predict_us/1000.0f, t_predict_us/1000.0f/n_past);
-        fprintf(stderr, "%s:    total time = %8.2f ms\n", __func__, (t_main_end_us - t_main_start_us)/1000.0f);
-    }
-
-    ggml_free(model.ctx);
-
-    if (params.use_color) {
-        printf(ANSI_COLOR_RESET);
-    }
-*/
     return 0;
 }
 
@@ -1102,7 +908,7 @@ void* llama_allocate_state() {
 }
 
 void* llama_allocate_params(const char *prompt, int seed, int threads, int tokens, int top_k,
-                            float top_p, float temp, float repeat_penalty, int repeat_last_n) {
+                            float top_p, float temp, float repeat_penalty, int repeat_last_n, int n_batch) {
     gpt_params* params = new gpt_params;
     params->seed = seed;
     params->n_threads = threads;
@@ -1115,6 +921,7 @@ void* llama_allocate_params(const char *prompt, int seed, int threads, int token
     params->repeat_penalty = repeat_penalty;
 
     params->prompt = prompt;
+    params->n_batch = n_batch;
     return params;
 }
 
