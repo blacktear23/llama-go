@@ -25,6 +25,11 @@ func main() {
 		panic(err)
 	}
 
+	if modelPath == "" {
+		fmt.Println("Require model path")
+		return
+	}
+
 	model := NewGGMLModel(modelPath, nctx, threads)
 	err = model.Load()
 	if err != nil {

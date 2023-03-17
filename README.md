@@ -1,6 +1,6 @@
 # llama-go
 
-Inference of [Facebook's LLaMA](https://github.com/facebookresearch/llama) model in Golang with embedded C/C++.
+Inference of [Facebook's LLaMA](https://github.com/facebookresearch/llama) model in Golang with embedded C/C++. And provide a RESTful API for prompt completion.
 
 ## Description
 
@@ -57,25 +57,55 @@ When running the larger models, make sure you have enough disk space to store al
 ## Usage
 
 ```bash
-./llama-go -m ./models/13B/ggml-model-q4_0.bin -t 4 -n 128
+./llama-go -h
+Usage of ./llama-go:
+  -c int
+    	context size (default 512)
+  -l string
+    	Listen address (default "127.0.0.1:4000")
+  -m string
+    	path to q4_0.bin model file to load
+  -s int
+    	seed (default -1)
+  -t int
+    	Number of threads to use during computation (default 4)
 
-Loading model ./models/13B/ggml-model-q4_0.bin...
-Model loaded successfully.
 
->>> Some good pun names for a pet groomer:
-
-Some good pun names for a pet groomer:
-Rub-a-Dub, Scooby Doo
-Hair Force One
-Duck and Cover, Two Fleas, One Duck
-...
-
->>>
-
+./llama-go -m ./models/13B/ggml-model-q4_0.bin
 ```
 
-The settings can be changed at runtime, multiple values are possible:
-```bash
->>> seed=1234 threads=8
-Settings: repeat_penalty=1.3 seed=1234 temp=0.8 threads=8 tokens=128 top_k=40 top_p=0.95
-```
+## HTTP API
+#### /api/completion
+* POST
+* Request Parameter: type is json.
+
+	```
+	{
+		"prompt": string,
+		"tokens": int,
+		"top_k": int,
+		"top_p": float,
+		"temp": float,
+		"repeat_penalty": float,
+		"repeat_lastn": int,
+	}
+	```
+
+	* prompt: required, prompt text.
+	* tokens: required, number tokens generated.
+	* top\_k: optional, default 40
+	* top\_p: optional, default 0.9
+	* temp: optional, default 0.8
+	* repeat\_penalty: optional, default 1.3
+	* repeat\_lastn: optional, default 64
+
+* Response: type is json.
+
+	```
+	{
+		"Prompt": string,
+		"Text": string,
+		"Tokens": int,
+		"CompleteReason": string,
+	}
+	```
