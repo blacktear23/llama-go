@@ -30,17 +30,22 @@ func main() {
 		return
 	}
 
+	// Create Model
 	model := NewGGMLModel(modelPath, nctx, threads)
 	err = model.Load()
 	if err != nil {
 		panic(err)
 	}
-	info := model.SystemInfo()
+	// Create worker and run
+	worker := NewWorker(model)
+	go worker.Run()
+
+	info := SystemInfo()
 	fmt.Println(info)
 
 	srv := APIServer{
 		Seed:   seed,
-		Model:  model,
+		Worker: worker,
 		Listen: listenAddr,
 	}
 	srv.Run()

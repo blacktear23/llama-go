@@ -9,7 +9,7 @@ import (
 
 type APIServer struct {
 	Seed   int
-	Model  *GGMLModel
+	Worker *Worker
 	Listen string
 }
 
@@ -95,16 +95,11 @@ func (s *APIServer) Completion(c *gin.Context) {
 		return
 	}
 	pp := reqParams.ToPredictParams(s.Seed)
+	job := NewJob(reqParams.Prompt, pp)
+	s.Worker.DispatchJob(job)
 	if reqParams.Stream {
-		wordChan := make(chan string)
-		go func() {
-			s.Model.Predict(pp, reqParams.Prompt, func(word string) {
-				wordChan <- word
-			})
-			close(wordChan)
-		}()
 		c.Stream(func(w io.Writer) bool {
-			output, ok := <-wordChan
+			output, ok := <-job.Response
 			if !ok {
 				return false
 			}
@@ -114,11 +109,11 @@ func (s *APIServer) Completion(c *gin.Context) {
 	} else {
 		resp := ""
 		tokens := 0
-		reason, err := s.Model.Predict(pp, reqParams.Prompt, func(word string) {
+		for word := range job.Response {
 			resp += word
 			tokens += 1
-		})
-		if err != nil {
+		}
+		if job.Err != nil {
 			respJsonErr(c, err)
 			return
 		}
@@ -126,7 +121,7 @@ func (s *APIServer) Completion(c *gin.Context) {
 			"Prompt":         reqParams.Prompt,
 			"Text":           resp,
 			"Tokens":         tokens,
-			"CompleteReason": reason.String(),
+			"CompleteReason": job.Reason.String(),
 		})
 	}
 }

@@ -85,7 +85,7 @@ func NewGGMLModel(path string, nctx int, threads int) *GGMLModel {
 	}
 }
 
-func (m *GGMLModel) SystemInfo() string {
+func SystemInfo() string {
 	info := C.llama_print_system_info()
 	return C.GoString(info)
 }
