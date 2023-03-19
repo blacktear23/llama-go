@@ -201,7 +201,7 @@ libllama.a: main.o ggml.o utils.o
 quantize: quantize.cpp ggml.o utils.o
 	$(CXX) $(CXXFLAGS) -DQUANTIZE quantize.cpp ggml.o utils.o -o quantize $(LDFLAGS)
 
-llama-go: main.go server.go model.go main.cpp main.h
+llama-go: main.go server.go model.go main.cpp main.h worker.go
 	CGO_CFLAGS_ALLOW='-mf.*' go build .
 #
 # Tests

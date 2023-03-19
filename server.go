@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 
@@ -8,9 +9,9 @@ import (
 )
 
 type APIServer struct {
-	Seed   int
-	Worker *Worker
-	Listen string
+	Seed      int
+	WorkerMgr *WorkerManager
+	Listen    string
 }
 
 func respJson(c *gin.Context, code int, data any) {
@@ -96,14 +97,16 @@ func (s *APIServer) Completion(c *gin.Context) {
 	}
 	pp := reqParams.ToPredictParams(s.Seed)
 	job := NewJob(reqParams.Prompt, pp)
-	s.Worker.DispatchJob(job)
+	s.WorkerMgr.DispatchJob(job)
 	if reqParams.Stream {
 		c.Stream(func(w io.Writer) bool {
 			output, ok := <-job.Response
 			if !ok {
+				reason := job.Reason
+				w.Write([]byte(fmt.Sprintf("[DONE] %s", reason)))
 				return false
 			}
-			w.Write([]byte(output))
+			w.Write([]byte("data:" + output + "\n"))
 			return true
 		})
 	} else {
@@ -121,7 +124,7 @@ func (s *APIServer) Completion(c *gin.Context) {
 			"Prompt":         reqParams.Prompt,
 			"Text":           resp,
 			"Tokens":         tokens,
-			"CompleteReason": job.Reason.String(),
+			"CompleteReason": job.Reason,
 		})
 	}
 }
