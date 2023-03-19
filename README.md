@@ -59,6 +59,10 @@ When running the larger models, make sure you have enough disk space to store al
 ```bash
 ./llama-go -h
 Usage of ./llama-go:
+  -M string
+    	process mode (master|worker) (default "master")
+  -S string
+    	worker listen socket file
   -c int
     	context size (default 512)
   -l string
@@ -69,10 +73,14 @@ Usage of ./llama-go:
     	seed (default -1)
   -t int
     	Number of threads to use during computation (default 4)
+  -w int
+    	Number workers (default 2)
 
 
 ./llama-go -m ./models/13B/ggml-model-q4_0.bin
 ```
+
+As llama.cpp do not support process miltiple requests in one process so we provide a multi-process mode to support parallel request process. `-w` will set the number worker process to be started. And the `-M` and `-S` parameter is handled by multi-process system, so user should not take care about it.
 
 ## HTTP API
 #### /api/completion
