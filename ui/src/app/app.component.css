@@ -56,3 +56,12 @@ nz-footer {
   padding-right: 10px;
   cursor: pointer;
 }
+
+@media only screen and (max-width: 600px) {
+  .ant-layout-content{
+    padding: 0px;
+  }
+  .ant-layout-header {
+    padding:0px;
+  }
+}
