@@ -176,7 +176,7 @@ $(info I CC:       $(CCV))
 $(info I CXX:      $(CXXV))
 $(info )
 
-default: main.o quantize libllama.a build-ui llama-go
+default: main.o quantize libllama.a build-ui llama-go package
 
 #
 # Build library
@@ -216,3 +216,9 @@ run-ui:
 
 build-ui:
 	cd ui; npm run build
+
+package:
+	@mkdir -p ./build/llama-go
+	@cp ./llama-go ./build/llama-go/
+	@cp -r ./static ./build/llama-go/
+	@cd ./build; tar zcf llama-go.tar.gz llama-go
