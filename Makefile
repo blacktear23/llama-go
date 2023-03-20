@@ -210,3 +210,6 @@ llama-go: main.go server.go model.go main.cpp main.h worker.go
 .PHONY: tests
 tests:
 	bash ./tests/run-tests.sh
+
+run-ui:
+	cd ui; npm run start
