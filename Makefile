@@ -176,7 +176,7 @@ $(info I CC:       $(CCV))
 $(info I CXX:      $(CXXV))
 $(info )
 
-default: main.o quantize libllama.a llama-go
+default: main.o quantize libllama.a build-ui llama-go
 
 #
 # Build library
@@ -207,9 +207,12 @@ llama-go: main.go server.go model.go main.cpp main.h worker.go
 # Tests
 #
 
-.PHONY: tests
+.PHONY: tests run-ui make-ui
 tests:
 	bash ./tests/run-tests.sh
 
 run-ui:
 	cd ui; npm run start
+
+build-ui:
+	cd ui; npm run build

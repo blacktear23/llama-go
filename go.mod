@@ -3,6 +3,7 @@ module github.com/cornelk/llama-go
 go 1.19
 
 require (
+	github.com/gin-contrib/gzip v0.0.6
 	github.com/gin-gonic/gin v1.9.0
 	github.com/gorilla/websocket v1.5.0
 )

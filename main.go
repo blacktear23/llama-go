@@ -5,8 +5,22 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 )
+
+func getExecutePath() string {
+	ex, err := os.Executable()
+	if err == nil {
+		return filepath.Dir(ex)
+	}
+
+	exReal, err := filepath.EvalSymlinks(ex)
+	if err != nil {
+		log.Panic(err)
+	}
+	return filepath.Dir(exReal)
+}
 
 func main() {
 	var (
@@ -38,6 +52,8 @@ func main() {
 		panic(err)
 	}
 
+	staticPath := getExecutePath() + "/static"
+
 	if modelPath == "" {
 		fmt.Println("Require model path")
 		return
@@ -47,7 +63,7 @@ func main() {
 	case "worker":
 		runWorkerMode(sockFile, modelPath, threads, seed, nctx)
 	case "master":
-		runMasterMode(execFile, listenAddr, workers, modelPath, threads, seed, nctx)
+		runMasterMode(execFile, listenAddr, staticPath, workers, modelPath, threads, seed, nctx)
 	}
 }
 
@@ -67,8 +83,7 @@ func runWorkerMode(sockFile string, modelPath string, threads int, seed int, nct
 	}
 }
 
-func runMasterMode(execFile string, listenAddr string, workers int, modelPath string, threads int, seed int, nctx int) {
-
+func runMasterMode(execFile string, listenAddr string, staticPath string, workers int, modelPath string, threads int, seed int, nctx int) {
 	wm := NewWorkerManager(execFile, modelPath, workers, nctx, threads)
 	wm.StartWorkers()
 
@@ -76,9 +91,10 @@ func runMasterMode(execFile string, listenAddr string, workers int, modelPath st
 	fmt.Println(info)
 
 	srv := APIServer{
-		Seed:      seed,
-		WorkerMgr: wm,
-		Listen:    listenAddr,
+		Seed:       seed,
+		WorkerMgr:  wm,
+		Listen:     listenAddr,
+		StaticPath: staticPath,
 	}
 	srv.Run()
 }

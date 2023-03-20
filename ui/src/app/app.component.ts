@@ -11,6 +11,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
   title = 'llama-go';
   messages: MessageItem[] = [];
   robotMsg: MessageItem|null = null;
+  maxTokens = 1024;
 
   prompt: string = '';
 
@@ -119,7 +120,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
     }
     const params = {
       prompt: prompt + '\n',
-      tokens: 128,
+      tokens: this.maxTokens,
       stream: true,
     };
     let msgItem: MessageItem ={

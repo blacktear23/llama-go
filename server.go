@@ -6,14 +6,16 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
 type APIServer struct {
-	Seed      int
-	WorkerMgr *WorkerManager
-	Listen    string
+	Seed       int
+	WorkerMgr  *WorkerManager
+	Listen     string
+	StaticPath string
 }
 
 func respJson(c *gin.Context, code int, data any) {
@@ -40,6 +42,9 @@ func (s *APIServer) Run() {
 }
 
 func (s *APIServer) setupRouter(r *gin.Engine) {
+	log.Println("[API Server] Static path:", s.StaticPath)
+	r.Use(gzip.Gzip(gzip.DefaultCompression))
+	r.NoRoute(gin.WrapH(http.FileServer(gin.Dir(s.StaticPath, false))))
 	ar := r.Group("/api")
 	ar.GET("/", s.Help)
 	ar.POST("/completion", s.Completion)
