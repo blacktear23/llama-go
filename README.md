@@ -1,6 +1,6 @@
 # llama-go
 
-Inference of [Facebook's LLaMA](https://github.com/facebookresearch/llama) model in Golang with embedded C/C++. And provide a RESTful API for prompt completion.
+Inference of [Facebook's LLaMA](https://github.com/facebookresearch/llama) model in Golang with embedded C/C++. And provide a RESTful API for prompt completion. It also provide a simple web UI for interact with.
 
 ## Description
 
