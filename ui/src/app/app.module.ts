@@ -17,6 +17,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzFormModule } from 'ng-zorro-antd/form';
+import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { SafeHtmlPipe } from './safe-html.pipe';
 
 registerLocaleData(en);
@@ -38,6 +39,7 @@ registerLocaleData(en);
     NzIconModule,
     NzAlertModule,
     NzModalModule,
+    NzInputNumberModule,
     NzFormModule
   ],
   providers: [

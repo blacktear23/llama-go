@@ -102,6 +102,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
         if (msg.finish) {
           // Finish just stop loading and return.
           this.loading = false;
+          this.finishLastMsg();
           this.robotMsg = null;
           console.log(msg.reason, msg.error);
           return
