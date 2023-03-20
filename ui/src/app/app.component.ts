@@ -7,7 +7,7 @@ import { MessageItem } from './api.service';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent implements OnInit, AfterViewChecked {
-  loading = true;
+  loading = false;
   title = 'llama-go';
   messages: MessageItem[] = [];
   robotMsg: MessageItem|null = null;
@@ -37,6 +37,19 @@ export class AppComponent implements OnInit, AfterViewChecked {
     }
   }
 
+  private finishLastMsg() {
+    let msgItem = this.robotMsg;
+    if (msgItem !== null) {
+      if (msgItem.loading) {
+        msgItem.loading = false;
+      }
+      if (msgItem.text === '') {
+        this.messages.pop();
+      }
+    }
+    this.robotMsg = null;
+  }
+
   private reload() {
     this.loading = true;
     if (this.wsock !== null) {
@@ -50,10 +63,15 @@ export class AppComponent implements OnInit, AfterViewChecked {
     wsock.addEventListener('close', (e) => {
       console.log('WS Close', e);
       this.wsock = null;
+      this.loading = false;
+      this.finishLastMsg();
+      this.reload();
     });
     wsock.addEventListener('error', (e) => {
       console.log('WS Error', e);
-    })
+      this.finishLastMsg();
+      this.reload();
+    });
     wsock.addEventListener('message', (ev) => {
       let data = ev.data;
       try {
@@ -61,6 +79,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
         if (msg.finish) {
           // Finish just stop loading and return.
           this.loading = false;
+          this.robotMsg = null;
           console.log(msg.reason, msg.error);
           return
         } else {
@@ -75,9 +94,10 @@ export class AppComponent implements OnInit, AfterViewChecked {
           }
         }
       } catch(e) {
-        console.log(e)
-        this.reload();
+        console.log(e);
         this.loading = false;
+        this.finishLastMsg();
+        this.reload();
       }
     });
     this.wsock = wsock;
@@ -131,7 +151,17 @@ export class AppComponent implements OnInit, AfterViewChecked {
     this.messages.push(msgItem);
     this.loading = true;
     this.robotMsg = msgItem;
-    this.wsock!.send(JSON.stringify(params));
+    try {
+      this.wsock!.send(JSON.stringify(params));
+    } catch(e) {
+      console.log(e);
+      this.finishLastMsg();
+      if (this.wsock !== null) {
+        this.wsock.close();
+      }
+      this.wsock = null
+      this.loading = false;
+    }
   }
 
   async send() {

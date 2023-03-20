@@ -140,16 +140,8 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
 
     // load vocab
     {
-        const int32_t n_vocab = model.hparams.n_vocab;
-
-        if (n_vocab != model.hparams.n_vocab) {
-            fprintf(stderr, "%s: invalid model file '%s' (bad vocab size %d != %d)\n",
-                    __func__, fname.c_str(), n_vocab, model.hparams.n_vocab);
-            return false;
-        }
-
         std::string word;
-        for (int i = 0; i < n_vocab; i++) {
+        for (int i = 0; i < model.hparams.n_vocab; i++) {
             uint32_t len;
             fin.read((char *) &len, sizeof(len));
 
@@ -797,6 +789,8 @@ int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
 
     std::vector<float> logits;
 
+    // Add a space in front of the first character to match OG llama tokenizer behavior
+    params.prompt.insert(0, 1, ' ');
     // tokenize the prompt
     std::vector<gpt_vocab::id> embd_inp = ::llama_tokenize(vocab, params.prompt, true);
     size_t input_size = embd_inp.size();

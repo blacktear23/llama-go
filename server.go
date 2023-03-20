@@ -98,9 +98,9 @@ func (r StreamResponse) Encode() []byte {
 func (s *APIServer) Completion(c *gin.Context) {
 	reqParams := &CompletionParams{
 		TopK:          40,
-		TopP:          0.9,
-		Temp:          0.8,
-		RepeatPenalty: 1.3,
+		TopP:          1,
+		Temp:          1,
+		RepeatPenalty: 1.1,
 		RepeatLastN:   64,
 	}
 	err := c.BindJSON(reqParams)
