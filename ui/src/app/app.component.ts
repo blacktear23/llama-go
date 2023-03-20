@@ -19,6 +19,9 @@ export class AppComponent implements OnInit, AfterViewChecked {
   wsock: WebSocket|null = null;
   @ViewChild('messageContainer') container: ElementRef | undefined;
 
+  private onConnecting = false;
+  private onConnectMsg: string = '';
+
   constructor() {
     let wsProto = 'ws';
     if (window.location.protocol === 'https') {
@@ -50,14 +53,27 @@ export class AppComponent implements OnInit, AfterViewChecked {
     this.robotMsg = null;
   }
 
+  private closeWs() {
+    if (this.wsock !== null) {
+      this.wsock.close();
+    }
+    this.wsock = null;
+  }
+
   private reload() {
     this.loading = true;
     if (this.wsock !== null) {
       this.wsock.close();
     }
     const wsock = new WebSocket(this.wsUrl);
+    this.onConnecting = true;
     wsock.addEventListener('open', (e) => {
+      this.onConnecting = false;
       console.log('WS Open', e);
+      if (this.onConnectMsg !== '') {
+        this.wsock!.send(this.onConnectMsg);
+      }
+      this.onConnectMsg = '';
       this.loading = false;
     });
     wsock.addEventListener('close', (e) => {
@@ -65,12 +81,11 @@ export class AppComponent implements OnInit, AfterViewChecked {
       this.wsock = null;
       this.loading = false;
       this.finishLastMsg();
-      this.reload();
     });
     wsock.addEventListener('error', (e) => {
       console.log('WS Error', e);
       this.finishLastMsg();
-      this.reload();
+      this.closeWs();
     });
     wsock.addEventListener('message', (ev) => {
       let data = ev.data;
@@ -97,14 +112,13 @@ export class AppComponent implements OnInit, AfterViewChecked {
         console.log(e);
         this.loading = false;
         this.finishLastMsg();
-        this.reload();
+        this.closeWs();
       }
     });
     this.wsock = wsock;
   }
 
   ngOnInit() {
-    this.reload();
     this.scrollToBottom();
   }
 
@@ -152,7 +166,11 @@ export class AppComponent implements OnInit, AfterViewChecked {
     this.loading = true;
     this.robotMsg = msgItem;
     try {
-      this.wsock!.send(JSON.stringify(params));
+      if (this.onConnecting) {
+        this.onConnectMsg = JSON.stringify(params);
+      } else {
+        this.wsock!.send(JSON.stringify(params));
+      }
     } catch(e) {
       console.log(e);
       this.finishLastMsg();
