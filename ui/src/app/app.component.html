@@ -16,7 +16,7 @@
             :
           </ng-template>
           <ng-template #msgTpl>
-            <span *ngIf="!item.loading">{{item.text}}</span>
+            <span *ngIf="!item.loading" [innerHTML]="item.text|safeHtml"></span>
             <span *ngIf="item.loading" nz-icon nzType="sync" [nzSpin]="true"></span>
           </ng-template>
         </nz-alert>

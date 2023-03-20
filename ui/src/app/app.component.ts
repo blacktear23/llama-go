@@ -72,9 +72,10 @@ export class AppComponent implements OnInit, AfterViewChecked {
       console.log('WS Open', e);
       if (this.onConnectMsg !== '') {
         this.wsock!.send(this.onConnectMsg);
+      } else {
+        this.loading = false;
       }
       this.onConnectMsg = '';
-      this.loading = false;
     });
     wsock.addEventListener('close', (e) => {
       console.log('WS Close', e);
@@ -101,7 +102,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
           let msgItem = this.robotMsg;
           if (msgItem !== null) {
             if (msgItem.loading) {
-              msgItem.text = msg.text;
+              msgItem.text = msg.text.replaceAll('\n', '<br/>');
               msgItem.loading = false;
             } else {
               msgItem.text += msg.text;
