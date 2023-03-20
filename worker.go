@@ -24,7 +24,7 @@ func NewJob(prompt string, params PredictParams) *Job {
 	return &Job{
 		Prompt:   prompt,
 		Params:   params,
-		Response: make(chan string),
+		Response: make(chan string, 128),
 	}
 }
 
@@ -131,7 +131,7 @@ func (w *Worker) handleConn(conn net.Conn) {
 func (w *Worker) handleRequest(conn net.Conn, p *workerRequest) {
 	job := &workerJob{
 		params: p,
-		respCh: make(chan string),
+		respCh: make(chan string, 128),
 	}
 	w.jobCh <- job
 	for text := range job.respCh {

@@ -811,6 +811,7 @@ int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
     std::fill(last_n_tokens.begin(), last_n_tokens.end(), 0);
 
     int remaining_tokens = params.n_predict;
+    // int remaining_tokens = model.hparams.n_ctx - embd_inp.size();
     int input_consumed = 0;
     bool input_noecho = false;
 

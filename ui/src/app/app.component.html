@@ -1,6 +1,15 @@
 <nz-layout>
   <nz-header>
     <div class="logo">LLAMA-GO</div>
+    <div class="rights">
+      <span class="settings">
+        <span nz-icon nzType="setting" nzTheme="outline" (click)="showSettingsModal()"></span>
+      </span>
+      <a href="https://github.com/blacktear23/llama-go">
+        <span nz-icon nzType="github" nzTheme="outline"></span>
+        GitHub
+      </a>
+    </div>
   </nz-header>
   <nz-content>
     <div class="inner-content">
@@ -32,6 +41,57 @@
         </button>
       </ng-template>
     </div>
+    <nz-modal 
+      [(nzVisible)]="settingsModal"
+      [nzFooter]="modalFooter"
+      nzTitle="The first Modal"
+      (nzOnOk)="handleOk()"
+      (nzOnCancel)="handleOk()"
+      nzCancelDisabled="true">
+      <ng-container *nzModalContent>
+        <form nz-form>
+          <nz-form-item>
+            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="max-tokens">Max Tokens</nz-form-label>
+            <nz-form-control [nzSm]="14" [nzXs]="24">
+              <input nz-input id="max-tokens" name="max-tokens" [(ngModel)]="maxTokens" />
+            </nz-form-control>
+          </nz-form-item>
+          <nz-form-item>
+            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="top-k">Top K</nz-form-label>
+            <nz-form-control [nzSm]="14" [nzXs]="24">
+              <input nz-input id="top-k" name="top-k" [(ngModel)]="topK" />
+            </nz-form-control>
+          </nz-form-item>
+          <nz-form-item>
+            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="top-p">Top P</nz-form-label>
+            <nz-form-control [nzSm]="14" [nzXs]="24">
+              <input nz-input id="top-p" name="top-p" [(ngModel)]="topP" />
+            </nz-form-control>
+          </nz-form-item>
+          <nz-form-item>
+            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="temp">Temperature</nz-form-label>
+            <nz-form-control [nzSm]="14" [nzXs]="24">
+              <input nz-input id="temp" name="temp" [(ngModel)]="temp" />
+            </nz-form-control>
+          </nz-form-item>
+          <nz-form-item>
+            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="repeat-penalty">Repeat Penalty</nz-form-label>
+            <nz-form-control [nzSm]="14" [nzXs]="24">
+              <input nz-input id="repeat-penalty" name="repeat-penalty" [(ngModel)]="repeatPenalty" />
+            </nz-form-control>
+          </nz-form-item>
+          <nz-form-item>
+            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="repeat-lastn">Repeat LastN</nz-form-label>
+            <nz-form-control [nzSm]="14" [nzXs]="24">
+              <input nz-input id="repeat-lastn" name="repeat-lastn" [(ngModel)]="repeatLastN" />
+            </nz-form-control>
+          </nz-form-item>
+        </form>
+      </ng-container>
+      <ng-template #modalFooter>
+        <button nz-button nzType="primary" (click)="handleOk()">OK</button>
+      </ng-template>
+    </nz-modal>
   </nz-content>
   <nz-footer>llama-go Ant Design ©2020 Implement By Angular</nz-footer>
 </nz-layout>

@@ -40,7 +40,7 @@ func main() {
 	flags.StringVar(&sockFile, "S", "", "worker listen socket file")
 	flags.IntVar(&threads, "t", 4, "Number of threads to use during computation")
 	flags.IntVar(&seed, "s", -1, "seed")
-	flags.IntVar(&nctx, "c", 512, "context size")
+	flags.IntVar(&nctx, "c", 2048, "context size")
 	flags.IntVar(&workers, "w", 2, "Number workers")
 	err := flags.Parse(os.Args[1:])
 	if err != nil {

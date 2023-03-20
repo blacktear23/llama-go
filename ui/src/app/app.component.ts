@@ -1,5 +1,5 @@
 import { AfterViewChecked, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { MessageItem } from './api.service';
+import { MessageItem, PromptRequest } from './api.service';
 
 @Component({
   selector: 'app-root',
@@ -8,10 +8,17 @@ import { MessageItem } from './api.service';
 })
 export class AppComponent implements OnInit, AfterViewChecked {
   loading = false;
+  settingsModal = false;
   title = 'llama-go';
   messages: MessageItem[] = [];
   robotMsg: MessageItem|null = null;
-  maxTokens = 1024;
+  // Params Defaults
+  maxTokens: number|null = 512;
+  topK: number|null = 40;
+  topP: number|null = 0.95;
+  temp: number|null = 0.1;
+  repeatPenalty: number|null = 1.3;
+  repeatLastN: number|null = 64;
 
   prompt: string = '';
 
@@ -149,15 +156,24 @@ export class AppComponent implements OnInit, AfterViewChecked {
     })
   }
 
-  async processRequest(prompt: string) {
+  private createParameter(prompt: string): PromptRequest {
+    return {
+      prompt: prompt + '\n',
+      stream: true,
+      tokens: (typeof this.maxTokens === 'string') ? null : this.maxTokens,
+      top_k: (typeof this.topK === 'string') ? null : this.topK,
+      top_p: (typeof this.topP === 'string') ? null : this.topP,
+      temp: (typeof this.temp === 'string') ? null : this.temp,
+      repeat_penalty: (typeof this.repeatPenalty === 'string') ? null : this.repeatPenalty,
+      repeat_lastn: (typeof this.repeatLastN === 'string') ? null : this.repeatLastN,
+    }
+  }
+
+  processRequest(prompt: string) {
     if (this.wsock === null) {
       this.reload();
     }
-    const params = {
-      prompt: prompt + '\n',
-      tokens: this.maxTokens,
-      stream: true,
-    };
+    const params = this.createParameter(prompt);
     let msgItem: MessageItem ={
       text: '',
       role: 'robot',
@@ -183,7 +199,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
     }
   }
 
-  async send() {
+  send() {
     if (this.prompt === '') {
       return
     }
@@ -191,5 +207,13 @@ export class AppComponent implements OnInit, AfterViewChecked {
     this.prompt = '';
     this.appendMessage(prompt, 'user');
     this.processRequest(prompt);
+  }
+
+  showSettingsModal() {
+    this.settingsModal = true;
+  }
+
+  handleOk() {
+    this.settingsModal = false;
   }
 }
