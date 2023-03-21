@@ -14,11 +14,11 @@ export class AppComponent implements OnInit, AfterViewChecked {
   robotMsg: MessageItem|null = null;
   // Params Defaults
   maxTokens: number|null = 512;
-  topK: number|null = 40;
+  topK: number|null = 64;
   topP: number|null = 0.95;
   temp: number|null = 0.9;
-  repeatPenalty: number|null = 1.5;
-  repeatLastN: number|null = 48;
+  repeatPenalty: number|null = 1.8;
+  repeatLastN: number|null = 128;
   numHistoryPrompts = 3;
   maxHistoryPromptSize = 128;
 
@@ -38,6 +38,41 @@ export class AppComponent implements OnInit, AfterViewChecked {
       wsProto = 'wss';
     }
     this.wsUrl = wsProto + '://' + window.location.host + '/api/ws/completion';
+    this.loadParameters();
+  }
+
+  private getParameterFromStorage(key: string, defVal: number): number {
+    let rawVal = localStorage.getItem(key);
+    if (rawVal === null) {
+      return defVal;
+    }
+    return Number(rawVal);
+  }
+
+  private setParameterToStorage(key: string, val: number|null) {
+    if (val !== null) {
+      localStorage.setItem(key, String(val));
+    } else {
+      localStorage.removeItem(key);
+    }
+  }
+
+  private saveParameters() {
+    this.setParameterToStorage('max_tokens', this.maxTokens);
+    this.setParameterToStorage('top_k', this.topK);
+    this.setParameterToStorage('top_p', this.topP);
+    this.setParameterToStorage('temp', this.temp);
+    this.setParameterToStorage('repeat_penalty', this.repeatPenalty);
+    this.setParameterToStorage('repeat_last_n', this.repeatLastN);
+  }
+
+  private loadParameters() {
+    this.maxTokens = this.getParameterFromStorage('max_tokens', 512);
+    this.topK = this.getParameterFromStorage('top_k', 64);
+    this.topP = this.getParameterFromStorage('top_p', 0.95);
+    this.temp = this.getParameterFromStorage('temp', 0.9);
+    this.repeatPenalty = this.getParameterFromStorage('repeat_penalty', 1.8);
+    this.repeatLastN = this.getParameterFromStorage('repeat_last_n', 256);
   }
 
   private scrollToBottom() {
@@ -250,5 +285,6 @@ export class AppComponent implements OnInit, AfterViewChecked {
 
   handleOk() {
     this.settingsModal = false;
+    this.saveParameters();
   }
 }

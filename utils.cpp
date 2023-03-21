@@ -322,9 +322,9 @@ std::vector<gpt_vocab::id> llama_tokenize(const gpt_vocab & vocab, const std::st
     while (i > 0) {
         gpt_vocab::id token_id = prev[i];
         if (token_id == 0) {
-	    // TODO: Return error or something more meaningful
+        // TODO: Return error or something more meaningful
             printf("failed to tokenize string!\n");
-	    break;
+            break;
         }
         res.push_back(token_id);
         auto token = (*vocab.id_to_token.find(token_id)).second;
