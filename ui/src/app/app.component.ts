@@ -16,15 +16,18 @@ export class AppComponent implements OnInit, AfterViewChecked {
   maxTokens: number|null = 512;
   topK: number|null = 40;
   topP: number|null = 0.95;
-  temp: number|null = 0.1;
-  repeatPenalty: number|null = 1.3;
-  repeatLastN: number|null = 64;
+  temp: number|null = 0.9;
+  repeatPenalty: number|null = 1.5;
+  repeatLastN: number|null = 48;
+  numHistoryPrompts = 3;
+  maxHistoryPromptSize = 128;
 
   prompt: string = '';
 
   wsUrl: string = '';
   wsock: WebSocket|null = null;
   @ViewChild('messageContainer') container: ElementRef | undefined;
+  @ViewChild('promptInput') promptInput: ElementRef | undefined;
 
   private onConnecting = false;
   private onConnectMsg: string = '';
@@ -44,6 +47,16 @@ export class AppComponent implements OnInit, AfterViewChecked {
         }
     } catch (err) {
         console.log(err);
+    }
+  }
+
+  private focusInput() {
+    try {
+      if (this.promptInput !== undefined) {
+        this.promptInput.nativeElement.focus();
+      }
+    } catch (err) {
+      console.log(err);
     }
   }
 
@@ -105,6 +118,9 @@ export class AppComponent implements OnInit, AfterViewChecked {
           this.finishLastMsg();
           this.robotMsg = null;
           console.log(msg.reason, msg.error);
+          setTimeout(() => {
+            this.focusInput();
+          }, 400);
           return
         } else {
           let msgItem = this.robotMsg;
@@ -157,9 +173,26 @@ export class AppComponent implements OnInit, AfterViewChecked {
     })
   }
 
-  private createParameter(prompt: string): PromptRequest {
+  private min(a: any, b: any): any {
+    if (a < b) {
+      return a;
+    }
+    return b;
+  }
+
+  private createParameter(): PromptRequest {
+    var prompts: string[] = [];
+    for (var i = 0; i < this.min(this.numHistoryPrompts, this.messages.length); i++) {
+      let idx = this.messages.length - 1 - i;
+      var text = this.messages[idx].text;
+      if (text.length > this.maxHistoryPromptSize) {
+        text = text.slice(0, this.maxHistoryPromptSize);
+      }
+      prompts.push(text);
+    }
+    prompts.reverse()
     return {
-      prompt: prompt + '\n',
+      prompt: prompts.join('\n') + '\n',
       stream: true,
       tokens: (typeof this.maxTokens === 'string') ? null : this.maxTokens,
       top_k: (typeof this.topK === 'string') ? null : this.topK,
@@ -174,7 +207,8 @@ export class AppComponent implements OnInit, AfterViewChecked {
     if (this.wsock === null) {
       this.reload();
     }
-    const params = this.createParameter(prompt);
+    const params = this.createParameter();
+    console.log('REQ PARAMETER:', params)
     let msgItem: MessageItem ={
       text: '',
       role: 'robot',

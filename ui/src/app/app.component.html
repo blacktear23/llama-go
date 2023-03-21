@@ -33,7 +33,7 @@
     </div>
     <div>
       <nz-input-group nzSearch nzSize="large" [nzAddOnAfter]="suffixButton">
-        <input type="text" nz-input placeholder="input prompt" [(ngModel)]="prompt" [disabled]="loading" (keyup.enter)="send()"/>
+        <input #promptInput type="text" nz-input placeholder="input prompt" [(ngModel)]="prompt" [disabled]="loading" (keyup.enter)="send()"/>
       </nz-input-group>
       <ng-template #suffixButton>
         <button nz-button nzType="default" nzSize="large" (click)="send()" [nzLoading]="loading">
