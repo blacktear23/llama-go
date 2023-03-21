@@ -122,11 +122,11 @@ func (m *GGMLModel) Predict(params PredictParams, text string, cb WordCallbackFn
 	result := C.llama_predict(pparams, m.state, C.uintptr_t(h))
 	switch result {
 	case 0:
-		return PROMPT_FINISH, nil
+		return PROMPT_STOP, nil
 	case 1:
 		return PROMPT_ERR, errors.New("Predicting failed")
 	case 2:
-		return PROMPT_STOP, nil
+		return PROMPT_FINISH, nil
 	}
 	return PROMPT_ERR, errors.New("Unknown result")
 }

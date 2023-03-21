@@ -30,8 +30,8 @@ endif
 # Compile flags
 #
 
-CFLAGS   = -I.              -O3 -DNDEBUG -std=c11   -fPIC
-CXXFLAGS = -I. -I./examples -O3 -DNDEBUG -std=c++11 -fPIC
+CFLAGS   = -I. -O3 -DNDEBUG -std=c11   -fPIC
+CXXFLAGS = -I. -O3 -DNDEBUG -std=c++11 -fPIC
 LDFLAGS  =
 
 # OS specific
@@ -181,16 +181,11 @@ default: main.o quantize libllama.a build-ui llama-go package
 #
 # Build library
 #
-
 ggml.o: ggml.c ggml.h
 	$(CC)  $(CFLAGS)   -c ggml.c -o ggml.o
 
 utils.o: utils.cpp utils.h
 	$(CXX) $(CXXFLAGS) -c utils.cpp -o utils.o
-
-clean:
-	rm -f *.o main quantize
-	rm -f *.a llama-go
 
 main.o: main.cpp ggml.o utils.o
 	$(CXX) $(CXXFLAGS) main.cpp ggml.o utils.o -o main.o -c $(LDFLAGS)
@@ -198,27 +193,46 @@ main.o: main.cpp ggml.o utils.o
 libllama.a: main.o ggml.o utils.o
 	ar src libllama.a main.o ggml.o utils.o
 
+#
+# Build Binary
+#
 quantize: quantize.cpp ggml.o utils.o
 	$(CXX) $(CXXFLAGS) -DQUANTIZE quantize.cpp ggml.o utils.o -o quantize $(LDFLAGS)
 
-llama-go: main.go server.go model.go main.cpp main.h worker.go
+llama-go: libllama.a main.go server.go model.go main.cpp main.h worker.go
 	CGO_CFLAGS_ALLOW='-mf.*' go build .
+
 #
 # Tests
 #
-
 .PHONY: tests run-ui make-ui
 tests:
 	bash ./tests/run-tests.sh
 
+
+#
+# UI
+#
+.PHONY: run-ui make-ui
 run-ui:
 	cd ui; npm run start
 
 build-ui:
 	cd ui; npm run build
 
+#
+# MISC
+#
 package:
 	@mkdir -p ./build/llama-go
 	@cp ./llama-go ./build/llama-go/
 	@cp -r ./static ./build/llama-go/
 	@cd ./build; tar zcf llama-go.tar.gz llama-go
+
+clean:
+	rm *.o
+	rm libllama.a
+	rm llama-go
+	rm quantize
+	rm -r ./static
+	rm -r ./build
