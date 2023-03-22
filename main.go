@@ -46,6 +46,7 @@ func main() {
 	flags.IntVar(&workers, "w", 2, "Number workers")
 	flags.IntVar(&nparts, "n", -1, "Number model part files")
 	flags.BoolVar(&debug, "d", false, "Debug enabler")
+
 	err := flags.Parse(os.Args[1:])
 	if err != nil {
 		panic(err)

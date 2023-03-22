@@ -1,8 +1,8 @@
 package main
 
 /*
-#cgo CFLAGS:   -I. -O3 -DNDEBUG -std=c11 -fPIC -pthread -mavx -mavx2 -mfma -mf16c -msse3
-#cgo CXXFLAGS: -O3 -DNDEBUG -std=c++11 -fPIC -pthread -I.
+#cgo CFLAGS:   -I. -O3 -DNDEBUG -std=c17 -fPIC -pthread -mavx -mavx2 -mfma -mf16c -msse3
+#cgo CXXFLAGS: -O3 -DNDEBUG -std=c++17 -fPIC -pthread -I.
 #cgo LDFLAGS:  -L . -l llama
 
 #include <stdint.h>
@@ -103,7 +103,7 @@ func (m *GGMLModel) Load() error {
 	modelPath := C.CString(m.path)
 	m.state = C.llama_allocate_state()
 	fmt.Printf("Loading model %s...\n", m.path)
-	result := C.llama_bootstrap(modelPath, m.state, C.int(m.nctx), C.int(m.nParts))
+	result := C.llama_bootstrap(modelPath, m.state, C.int(m.nctx), C.int(m.nParts), 0)
 	if result != 0 {
 		return errors.New("Bootstrap got error")
 	}

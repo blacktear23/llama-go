@@ -3,11 +3,12 @@
 #include "utils.h"
 
 #include <cassert>
+#include <cinttypes>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
-#include <map>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,13 @@
 #include <unistd.h>
 #elif defined (_WIN32)
 #include <signal.h>
+#endif
+
+#if defined (_WIN32)
+#pragma comment(lib,"kernel32.lib")
+extern "C" __declspec(dllimport) void* __stdcall GetStdHandle(unsigned long nStdHandle);
+extern "C" __declspec(dllimport) int __stdcall GetConsoleMode(void* hConsoleHandle, unsigned long* lpMode);
+extern "C" __declspec(dllimport) int __stdcall SetConsoleMode(void* hConsoleHandle, unsigned long dwMode);
 #endif
 
 #define ANSI_COLOR_RED     "\x1b[31m"
@@ -27,8 +35,40 @@
 #define ANSI_COLOR_RESET   "\x1b[0m"
 #define ANSI_BOLD          "\x1b[1m"
 
+/* Keep track of current color of output, and emit ANSI code if it changes. */
+enum console_state {
+    CONSOLE_STATE_DEFAULT=0,
+    CONSOLE_STATE_PROMPT,
+    CONSOLE_STATE_USER_INPUT
+};
+
+static console_state con_st = CONSOLE_STATE_DEFAULT;
+static bool con_use_color = false;
+
+void set_console_state(console_state new_st)
+{
+    if (!con_use_color) return;
+    // only emit color code if state changed
+    if (new_st != con_st) {
+        con_st = new_st;
+        switch(con_st) {
+        case CONSOLE_STATE_DEFAULT:
+            printf(ANSI_COLOR_RESET);
+            return;
+        case CONSOLE_STATE_PROMPT:
+            printf(ANSI_COLOR_YELLOW);
+            return;
+        case CONSOLE_STATE_USER_INPUT:
+            printf(ANSI_BOLD ANSI_COLOR_GREEN);
+            return;
+        }
+    }
+}
+
+static const int EOS_TOKEN_ID = 2;
+
 // determine number of model parts based on the dimension
-static const std::map<int, int> LLAMA_N_PARTS = {
+static const std::unordered_map<int, int> LLAMA_N_PARTS = {
     { 4096, 1 },
     { 5120, 2 },
     { 6656, 4 },
@@ -82,11 +122,11 @@ struct llama_model {
 
     //
     struct ggml_context * ctx;
-    std::map<std::string, struct ggml_tensor *> tensors;
+    std::unordered_map<std::string, struct ggml_tensor *> tensors;
 };
 
 struct llama_state {
-    gpt_vocab vocab;
+    llama_vocab vocab;
     llama_model model;
     struct {
         int64_t t_load_us = -1;
@@ -96,7 +136,8 @@ struct llama_state {
 };
 
 // load the model's weights from a file
-bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab & vocab, int n_ctx, int n_parts) {
+
+bool llama_model_load(const std::string & fname, llama_model & model, llama_vocab & vocab, int n_ctx, int n_parts, ggml_type memory_type = GGML_TYPE_F32) {
     std::vector<char> f_buf(1024*1024);
 
     auto fin = std::ifstream(fname, std::ios::binary);
@@ -110,8 +151,22 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
     {
         uint32_t magic;
         fin.read((char *) &magic, sizeof(magic));
-        if (magic != 0x67676d6c) {
-            fprintf(stderr, "%s: invalid model file '%s' (bad magic)\n", __func__, fname.c_str());
+        if (magic == FILE_MAGIC_UNVERSIONED) {
+            fprintf(stdout, "%s: invalid model file '%s' (too old, regenerate your model files!)\n",
+                    __func__, fname.c_str());
+            return false;
+        }
+        if (magic != FILE_MAGIC) {
+            fprintf(stdout, "%s: invalid model file '%s' (bad magic)\n", __func__, fname.c_str());
+            return false;
+        }
+
+        uint32_t format_version;
+        fin.read((char *) &format_version, sizeof(format_version));
+
+        if (format_version != FILE_VERSION) {
+            fprintf(stdout, "%s: invalid model file '%s' (unsupported format version %" PRIu32 ", expected %d)\n",
+                    __func__, fname.c_str(), format_version, FILE_VERSION);
             return false;
         }
     }
@@ -134,6 +189,7 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
         hparams.n_ctx = n_ctx;
 
         n_ff = ((2*(4*hparams.n_embd)/3 + hparams.n_mult - 1)/hparams.n_mult)*hparams.n_mult;
+
         if (n_parts < 1) {
             n_parts = LLAMA_N_PARTS.at(hparams.n_embd);
         }
@@ -142,26 +198,43 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
     // load vocab
     {
         std::string word;
+        vocab.id_to_token.resize(model.hparams.n_vocab);
+        std::vector<char> tmp(64);
+
         for (int i = 0; i < model.hparams.n_vocab; i++) {
             uint32_t len;
             fin.read((char *) &len, sizeof(len));
 
             word.resize(len);
-            fin.read((char *) word.data(), len);
+            if (len > 0) {
+                tmp.resize(len);
+                fin.read(tmp.data(), len);
+                word.assign(tmp.data(), len);
+            } else {
+                word.clear();
+            }
+
+            float score;
+            fin.read((char *) &score, sizeof(score));
 
             vocab.token_to_id[word] = i;
-            vocab.id_to_token[i] = word;
+
+            auto &tok_score = vocab.id_to_token[i];
+            tok_score.tok = word;
+            tok_score.score = score;
         }
     }
 
     // for the big tensors, we have the option to store the data in 16-bit floats or quantized
     // in order to save memory and also to speed up the computation
-    ggml_type wtype = GGML_TYPE_COUNT;
+    // wtype is for per-layer weights, while vtype is for other weights
+    ggml_type wtype, vtype;
     switch (model.hparams.f16) {
-        case 0: wtype = GGML_TYPE_F32;  break;
-        case 1: wtype = GGML_TYPE_F16;  break;
-        case 2: wtype = GGML_TYPE_Q4_0; break;
-        case 3: wtype = GGML_TYPE_Q4_1; break;
+        case 0: wtype = vtype = GGML_TYPE_F32;  break;
+        case 1: wtype = vtype = GGML_TYPE_F16;  break;
+        case 2: wtype = vtype = GGML_TYPE_Q4_0; break;
+        case 3: wtype = vtype = GGML_TYPE_Q4_1; break;
+        case 4: wtype = GGML_TYPE_Q4_1; vtype = GGML_TYPE_F16; break;
         default:
                 {
                     fprintf(stderr, "%s: invalid model file '%s' (bad f16 value %d)\n",
@@ -169,8 +242,6 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
                     return false;
                 }
     }
-
-    const ggml_type wtype2 = GGML_TYPE_F32;
 
     auto & ctx = model.ctx;
 
@@ -184,11 +255,11 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
         const int n_ctx   = hparams.n_ctx;
         const int n_vocab = hparams.n_vocab;
 
-        ctx_size += n_embd*n_vocab*ggml_type_sizef(wtype); // tok_embeddings
+        ctx_size += n_embd*n_vocab*ggml_type_sizef(vtype); // tok_embeddings
 
         ctx_size += n_embd*ggml_type_sizef(GGML_TYPE_F32); // norm
 
-        ctx_size += n_embd*n_vocab*ggml_type_sizef(wtype); // output
+        ctx_size += n_embd*n_vocab*ggml_type_sizef(vtype); // output
 
         ctx_size += n_layer*(n_embd*ggml_type_sizef(GGML_TYPE_F32)); // attention_norm
 
@@ -203,8 +274,8 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
         ctx_size += n_layer*(n_ff*n_embd*ggml_type_sizef(wtype)); // w2
         ctx_size += n_layer*(n_ff*n_embd*ggml_type_sizef(wtype)); // w3
 
-        ctx_size += n_ctx*n_layer*n_embd*ggml_type_sizef(GGML_TYPE_F32); // memory_k
-        ctx_size += n_ctx*n_layer*n_embd*ggml_type_sizef(GGML_TYPE_F32); // memory_v
+        ctx_size += n_ctx*n_layer*n_embd*ggml_type_sizef(memory_type); // memory_k
+        ctx_size += n_ctx*n_layer*n_embd*ggml_type_sizef(memory_type); // memory_v
 
         ctx_size += (5 + 10*n_layer)*256; // object overhead
     }
@@ -229,15 +300,14 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
 
         const int n_embd  = hparams.n_embd;
         const int n_layer = hparams.n_layer;
-        const int n_ctx   = hparams.n_ctx;
         const int n_vocab = hparams.n_vocab;
 
         model.layers.resize(n_layer);
 
-        model.tok_embeddings = ggml_new_tensor_2d(ctx, wtype, n_embd, n_vocab);
+        model.tok_embeddings = ggml_new_tensor_2d(ctx, vtype, n_embd, n_vocab);
 
         model.norm   = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd);
-        model.output = ggml_new_tensor_2d(ctx, wtype,         n_embd, n_vocab);
+        model.output = ggml_new_tensor_2d(ctx, vtype,         n_embd, n_vocab);
 
         // map by name
         model.tensors["tok_embeddings.weight"] = model.tok_embeddings;
@@ -288,8 +358,8 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
         const int n_mem      = n_layer*n_ctx;
         const int n_elements = n_embd*n_mem;
 
-        model.memory_k = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_elements);
-        model.memory_v = ggml_new_tensor_1d(ctx, GGML_TYPE_F32, n_elements);
+        model.memory_k = ggml_new_tensor_1d(ctx, memory_type, n_elements);
+        model.memory_v = ggml_new_tensor_1d(ctx, memory_type, n_elements);
 
         const size_t memory_size = ggml_nbytes(model.memory_k) + ggml_nbytes(model.memory_v);
     }
@@ -500,9 +570,10 @@ bool llama_eval(
         const llama_model & model,
         const int n_threads,
         const int n_past,
-        const std::vector<gpt_vocab::id> & embd_inp,
-              std::vector<float>         & embd_w,
-              size_t                     & mem_per_token) {
+        const std::vector<llama_vocab::id> & embd_inp,
+              std::vector<float>           & embd_w,
+              size_t                       & mem_per_token,
+              bool return_all_logits = false) {
     const int N = embd_inp.size();
 
     const auto & hparams = model.hparams;
@@ -514,15 +585,14 @@ bool llama_eval(
     const int n_vocab = hparams.n_vocab;
     const int n_rot   = hparams.n_embd/hparams.n_head;
 
-    const int d_key = n_embd/n_head;
-
-     // TODO: check if this size scales with n_ctx linearly and remove constant. somehow I feel it wasn't the case
+    // TODO: check if this size scales with n_ctx linearly and remove constant. somehow I feel it wasn't the case
     // static size_t buf_size = hparams.n_ctx*1024*1024;
     static size_t buf_size = 512u*1024*1024;
     static void * buf = malloc(buf_size);
 
     if (mem_per_token > 0 && mem_per_token*N > buf_size) {
-        const size_t buf_size_new = 1.1*(mem_per_token*N); // add 10% to account for ggml object overhead
+        const size_t buf_size_new = 1.3*(mem_per_token*N); // add 30% to account for ggml object overhead
+        //fprintf(stderr, "\n%s: reallocating buffer from %zu to %zu bytes\n", __func__, buf_size, buf_size_new);
 
         // reallocate
         buf_size = buf_size_new;
@@ -707,9 +777,14 @@ bool llama_eval(
     //embd_w.resize(n_vocab*N);
     //memcpy(embd_w.data(), ggml_get_data(inpL), sizeof(float)*n_vocab*N);
 
-    // return result for just the last token
-    embd_w.resize(n_vocab);
-    memcpy(embd_w.data(), (float *) ggml_get_data(inpL) + (n_vocab*(N-1)), sizeof(float)*n_vocab);
+    if (return_all_logits) {
+        embd_w.resize(n_vocab * N);
+        memcpy(embd_w.data(), (float *) ggml_get_data(inpL), sizeof(float)*n_vocab*N);
+    } else {
+        // return result for just the last token
+        embd_w.resize(n_vocab);
+        memcpy(embd_w.data(), (float *) ggml_get_data(inpL) + (n_vocab*(N-1)), sizeof(float)*n_vocab);
+    }
 
     if (mem_per_token == 0) {
         mem_per_token = ggml_used_mem(ctx0)/N;
@@ -720,11 +795,82 @@ bool llama_eval(
     return true;
 }
 
+std::vector<double> softmax(const std::vector<float>& logits) {
+    std::vector<double> probs(logits.size());
+    float max_logit = logits[0];
+    for (float v : logits) max_logit = std::max(max_logit, v);
+    double sum_exp = 0.0;
+    for (size_t i = 0; i < logits.size(); i++) {
+        // Subtract the maximum logit value from the current logit value for numerical stability
+        float logit = logits[i] - max_logit;
+        double exp_logit = std::exp(logit);
+        sum_exp += exp_logit;
+        probs[i] = exp_logit;
+    }
+    for (size_t i = 0; i < probs.size(); i++) probs[i] /= sum_exp;
+    return probs;
+}
+
+void perplexity(const llama_vocab &vocab, const llama_model &model, const gpt_params &params, size_t mem_per_token) {
+    // Download: https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-raw-v1.zip?ref=salesforce-research
+    // Run `./main --perplexity -m models/7B/ggml-model-q4_0.bin -f wiki.test.raw`
+    // Output: `perplexity: 13.5106 [114/114]`
+    std::vector<llama_vocab::id> tokens = ::llama_tokenize(vocab, params.prompt, true);
+
+    int count = 0;
+    double nll = 0.0;
+    int seq_count = tokens.size() / params.n_ctx;
+    printf("Calculating perplexity over %d chunks\n", seq_count);
+    for (int i = 0; i < seq_count; ++i) {
+        int start = i * params.n_ctx;
+        int end = start + params.n_ctx - 1;
+        std::vector<llama_vocab::id> embd(tokens.begin() + start, tokens.begin() + end);
+        std::vector<float> logits;
+        auto start_t = std::chrono::high_resolution_clock::now();
+        if (!llama_eval(model, params.n_threads, 0, embd, logits, mem_per_token, true)) {
+            fprintf(stderr, "Failed to predict\n");
+            return;
+        }
+        auto end_t = std::chrono::high_resolution_clock::now();
+        if (i == 0) {
+            double seconds = std::chrono::duration<double>(end_t - start_t).count();
+            printf("%.2f seconds per pass - ETA %.2f hours\n", seconds, (seconds * seq_count) / (60.0*60.0));
+        }
+        // We get the logits for all the tokens in the context window (params.n_ctx)
+        // from llama_eval above.  Now, based on https://huggingface.co/docs/transformers/perplexity,
+        // calculate the perplexity over the last half the window (so the model always has
+        // some context to predict the token).
+        //
+        // We rely on the fact that attention in the forward pass only looks at previous
+        // tokens here, so the logits returned for each token are an accurate representation
+        // of what the model would have predicted at that point.
+        //
+        // Example, we have a context window of 512, we will compute perplexity for each of the
+        // last 256 tokens.  Then, we split the input up into context window size chunks to
+        // process the entire prompt.
+        for (int j = params.n_ctx / 2; j < params.n_ctx - 1; ++j) {
+            // Calculate probability of next token, given the previous ones.
+            int n_vocab = model.hparams.n_vocab;
+            std::vector<float> tok_logits(
+                logits.begin() + j * n_vocab,
+                logits.begin() + (j + 1) * n_vocab);
+            double prob = softmax(tok_logits)[tokens[start + j + 1]];
+            nll += -std::log(prob);
+            ++count;
+        }
+        // perplexity is e^(average negative log-likelihood)
+        printf("[%d]%.4lf,", i + 1, std::exp(nll / count));
+        fflush(stdout);
+    }
+    printf("\n");
+}
+
 static bool is_interacting = false;
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__)) || defined (_WIN32)
 void sigint_handler(int signo) {
-    printf(ANSI_COLOR_RESET);
+    set_console_state(CONSOLE_STATE_DEFAULT);
+    printf("\n"); // this also force flush stdout.
     if (signo == SIGINT) {
         if (!is_interacting) {
             is_interacting=true;
@@ -756,13 +902,17 @@ char * llama_print_system_info(void) {
 }
 
 // load the model
-int llama_bootstrap(const char *model_path, void* state_pr, int32_t n_ctx, int32_t n_parts)
-{
+int llama_bootstrap(const char *model_path, void* state_pr, int32_t n_ctx, int32_t n_parts, int memory_type_int) {
+        ggml_type memory_type = ggml_type(memory_type_int);
+        if (memory_type == 0) {
+            memory_type = GGML_TYPE_F32;
+        }
+
         ggml_time_init();
         llama_state* state = (llama_state*) state_pr;
 
         const int64_t t_start_us = ggml_time_us();
-        if (!llama_model_load(model_path, state->model, state->vocab, n_ctx, n_parts)) {
+        if (!llama_model_load(model_path, state->model, state->vocab, n_ctx, n_parts, memory_type)) {
             fprintf(stderr, "%s: failed to load model from '%s'\n", __func__, model_path);
             return 1;
         }
@@ -774,47 +924,63 @@ int llama_bootstrap(const char *model_path, void* state_pr, int32_t n_ctx, int32
 int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
     gpt_params params = *(gpt_params*) params_ptr;
     llama_state state = *(llama_state*) state_pr;
-    gpt_vocab vocab = state.vocab;
+    llama_vocab vocab = state.vocab;
     llama_model model = state.model;
-
 
     if (params.seed < 0) {
         params.seed = time(NULL);
     }
     std::mt19937 rng(params.seed);
-
-    int n_past = 0;
-
-    state.timing.t_sample_us = 0;
-    state.timing.t_predict_us = 0;
-
     std::vector<float> logits;
-
-    // Add a space in front of the first character to match OG llama tokenizer behavior
-    params.prompt.insert(0, 1, ' ');
-    // tokenize the prompt
-    std::vector<gpt_vocab::id> embd_inp = ::llama_tokenize(vocab, params.prompt, true);
-    size_t input_size = embd_inp.size();
-
-    params.n_predict = std::min(params.n_predict, model.hparams.n_ctx - (int) embd_inp.size());
-
-    // tokenize the reverse prompt
-    std::vector<gpt_vocab::id> antiprompt_inp = ::llama_tokenize(vocab, params.antiprompt, false);
-
-    std::vector<gpt_vocab::id> embd;
 
     // determine the required inference memory per token:
     size_t mem_per_token = 0;
     llama_eval(model, params.n_threads, 0, { 0, 1, 2, 3 }, logits, mem_per_token);
 
+    if (params.perplexity) {
+        perplexity(vocab, model, params, mem_per_token);
+        exit(0);
+    }
+    int n_past = 0;
+
+    state.timing.t_sample_us = 0;
+    state.timing.t_predict_us = 0;
+
+    // Add a space in front of the first character to match OG llama tokenizer behavior
+    params.prompt.insert(0, 1, ' ');
+    // tokenize the prompt
+    std::vector<llama_vocab::id> embd_inp = ::llama_tokenize(vocab, params.prompt, true);
+
+    params.n_predict = std::min(params.n_predict, model.hparams.n_ctx - (int) embd_inp.size());
+
+    // prefix & suffix for instruct mode
+    const std::vector<llama_vocab::id> inp_pfx = ::llama_tokenize(vocab, "\n\n### Instruction:\n\n", true);
+    const std::vector<llama_vocab::id> inp_sfx = ::llama_tokenize(vocab, "\n\n### Response:\n\n", false);
+
+    // in instruct mode, we inject a prefix and a suffix to each input by the user
+    if (params.instruct) {
+        params.interactive = true;
+        params.antiprompt.push_back("### Instruction:\n\n");
+    }
+
+    // enable interactive mode if reverse prompt is specified
+    if (params.antiprompt.size() != 0) {
+        params.interactive = true;
+    }
+
+
+    std::vector<llama_vocab::id> embd;
+
     int last_n_size = params.repeat_last_n;
-    std::vector<gpt_vocab::id> last_n_tokens(last_n_size);
+    std::vector<llama_vocab::id> last_n_tokens(last_n_size);
     std::fill(last_n_tokens.begin(), last_n_tokens.end(), 0);
 
-    int remaining_tokens = params.n_predict;
-    // int remaining_tokens = model.hparams.n_ctx - embd_inp.size();
     int input_consumed = 0;
     bool input_noecho = false;
+
+    int remaining_tokens = params.n_predict;
+
+    int input_size = embd_inp.size();
 
     while (remaining_tokens > 0) {
         // predict
@@ -831,7 +997,7 @@ int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
         n_past += embd.size();
         embd.clear();
 
-        if (embd_inp.size() <= input_consumed) {
+        if ((int) embd_inp.size() <= input_consumed) {
             // out of user input, sample next token
             const float top_k = params.top_k;
             const float top_p = params.top_p;
@@ -840,10 +1006,15 @@ int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
 
             const int n_vocab = model.hparams.n_vocab;
 
-            gpt_vocab::id id = 0;
+            llama_vocab::id id = 0;
 
             {
                 const int64_t t_start_sample_us = ggml_time_us();
+
+                if (params.ignore_eos) {
+                    // set the logit of the eos token to zero to avoid sampling it
+                    logits[logits.size() - n_vocab + EOS_TOKEN_ID] = 0;
+                }
 
                 id = llama_sample_top_p_top_k(vocab, logits.data() + (logits.size() - n_vocab), last_n_tokens, repeat_penalty, top_k, top_p, temp, rng);
 
@@ -863,12 +1034,12 @@ int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
             --remaining_tokens;
         } else {
             // some user input remains from prompt or interaction, forward it to processing
-            while (embd_inp.size() > input_consumed) {
+            while ((int) embd_inp.size() > input_consumed) {
                 embd.push_back(embd_inp[input_consumed]);
                 last_n_tokens.erase(last_n_tokens.begin());
                 last_n_tokens.push_back(embd_inp[input_consumed]);
                 ++input_consumed;
-                if (embd.size() > params.n_batch) {
+                if ((int) embd.size() >= params.n_batch) {
                     break;
                 }
             }
@@ -885,14 +1056,14 @@ int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
                         input_size--;
                         continue;
                     }
-                    const char * word = vocab.id_to_token[id].c_str();
+                    const char * word = vocab.id_to_token[id].tok.c_str();
                     prompt_callback_bridge(cb, const_cast<char*>(word));
                 }
             }
         }
 
         // end of text token
-        if (embd.back() == 2) {
+        if (embd.back() == EOS_TOKEN_ID) {
             return 2;
         }
     }
@@ -928,10 +1099,10 @@ void llama_free_params(void* params_ptr) {
 
 void llama_tokenize_prompt(void* state_ptr, const char* prompt, uintptr_t cb) {
     llama_state state = *(llama_state*) state_ptr;
-    gpt_vocab vocab = state.vocab;
-    std::vector<gpt_vocab::id> prompt_inp = ::llama_tokenize(vocab, prompt, true);
+    llama_vocab vocab = state.vocab;
+    std::vector<llama_vocab::id> prompt_inp = ::llama_tokenize(vocab, prompt, true);
     for (auto id : prompt_inp) {
-        const char * word = vocab.id_to_token[id].c_str();
+        const char * word = vocab.id_to_token[id].tok.c_str();
         tokenizer_callback_bridge(cb, const_cast<char*>(word));
     }
 }
