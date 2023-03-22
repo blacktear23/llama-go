@@ -44,6 +44,13 @@ func prompt_callback_bridge(h C.uintptr_t, word *C.char) {
 	fn(data)
 }
 
+//export tokenizer_callback_bridge
+func tokenizer_callback_bridge(h C.uintptr_t, word *C.char) {
+	data := C.GoString(word)
+	fn := cgo.Handle(h).Value().(WordCallbackFn)
+	fn(data)
+}
+
 type WordCallbackFn func(data string)
 
 type PredictParams struct {
@@ -129,4 +136,15 @@ func (m *GGMLModel) Predict(params PredictParams, text string, cb WordCallbackFn
 		return PROMPT_FINISH, nil
 	}
 	return PROMPT_ERR, errors.New("Unknown result")
+}
+
+func (m *GGMLModel) TokenizePrompt(prompt string) []string {
+	ret := []string{}
+	cb := func(word string) {
+		ret = append(ret, word)
+	}
+	h := cgo.NewHandle(WordCallbackFn(cb))
+	input := C.CString(prompt)
+	C.llama_tokenize_prompt(m.state, input, C.uintptr_t(h))
+	return ret
 }

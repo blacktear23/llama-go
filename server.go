@@ -48,6 +48,7 @@ func (s *APIServer) setupRouter(r *gin.Engine) {
 	ar := r.Group("/api")
 	ar.GET("/", s.Help)
 	ar.POST("/completion", s.Completion)
+	ar.GET("/tokenize", s.TokenizePrompt)
 	ar.GET("/ws/completion", s.StreamCompletion)
 }
 
@@ -55,7 +56,35 @@ func (s *APIServer) Help(c *gin.Context) {
 	respJson(c, 200, gin.H{
 		"/api/":              "Help",
 		"/api/completion":    "Completion",
+		"/api/tokenize":      "Tokenize prompt",
 		"/api/ws/completion": "Completion web socket",
+	})
+}
+
+func (s *APIServer) TokenizePrompt(c *gin.Context) {
+	prompt := c.DefaultQuery("prompt", "")
+	if prompt == "" {
+		respJsonErrStr(c, "Require prompt")
+		return
+	}
+	pp := DefaultPredictParams(512)
+	job := NewJob(TokenizeJob, prompt, pp)
+	s.WorkerMgr.DispatchJob(job)
+	var resp []string
+	for words := range job.Response {
+		resp = words
+	}
+	c.Stream(func(w io.Writer) bool {
+		numToks := len(resp)
+		for i, word := range resp {
+			resp := StreamResponse{
+				Text:   word,
+				Finish: (i >= numToks-1),
+				Reason: "",
+			}
+			w.Write(resp.Encode())
+		}
+		return false
 	})
 }
 
@@ -117,7 +146,7 @@ func (s *APIServer) Completion(c *gin.Context) {
 		return
 	}
 	pp := reqParams.ToPredictParams(s.Seed)
-	job := NewJob(reqParams.Prompt, pp)
+	job := NewJob(CompletionJob, reqParams.Prompt, pp)
 	s.WorkerMgr.DispatchJob(job)
 	if reqParams.Stream {
 		c.Stream(func(w io.Writer) bool {
@@ -132,7 +161,7 @@ func (s *APIServer) Completion(c *gin.Context) {
 				return false
 			}
 			resp := StreamResponse{
-				Text:   output,
+				Text:   output[0],
 				Finish: false,
 				Reason: "",
 			}
@@ -143,7 +172,7 @@ func (s *APIServer) Completion(c *gin.Context) {
 		resp := ""
 		tokens := 0
 		for word := range job.Response {
-			resp += word
+			resp += word[0]
 			tokens += 1
 		}
 		if job.Err != nil {
@@ -223,11 +252,11 @@ func (s *APIServer) StreamCompletion(c *gin.Context) {
 			continue
 		}
 		pp := reqParams.ToPredictParams(s.Seed)
-		job := NewJob(reqParams.Prompt, pp)
+		job := NewJob(CompletionJob, reqParams.Prompt, pp)
 		s.WorkerMgr.DispatchJob(job)
 		for word := range job.Response {
 			rmsg := WsResponseMsg{
-				Text:   word,
+				Text:   word[0],
 				Error:  "",
 				Reason: "",
 				Finish: false,

@@ -924,3 +924,13 @@ void llama_free_params(void* params_ptr) {
     gpt_params* params = (gpt_params*) params_ptr;
     delete params;
 }
+
+void llama_tokenize_prompt(void* state_ptr, const char* prompt, uintptr_t cb) {
+    llama_state state = *(llama_state*) state_ptr;
+    gpt_vocab vocab = state.vocab;
+    std::vector<gpt_vocab::id> prompt_inp = ::llama_tokenize(vocab, prompt, true);
+    for (auto id : prompt_inp) {
+        const char * word = vocab.id_to_token[id].c_str();
+        tokenizer_callback_bridge(cb, const_cast<char*>(word));
+    }
+}

@@ -6,6 +6,7 @@ extern "C" {
 #include <stdint.h>
 
 extern void prompt_callback_bridge(uintptr_t h, char* word);
+extern void tokenizer_callback_bridge(uintptr_t h, char* word);
 
 void *llama_allocate_state();
 
@@ -19,6 +20,8 @@ void llama_free_params(void* params_ptr);
 int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb);
 
 char* llama_print_system_info(void);
+
+void llama_tokenize_prompt(void* state_ptr, const char* prompt, uintptr_t cb);
 
 #ifdef __cplusplus
 }

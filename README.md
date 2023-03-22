@@ -117,3 +117,18 @@ As llama.cpp do not support process miltiple requests in one process so we provi
 		"CompleteReason": string,
 	}
 	```
+
+#### /api/tokenize
+* GET
+* Query Parameter: prompt type is string
+* Response: type is json stream.
+
+	```
+	{"text": [token], "finish": false, "reason": ""}\n
+	...
+	{"text": [token], "finish": true, "reason": ""}\n
+	```
+
+	* token: Token that splited.
+	* finish: Is the last token.
+	* reason: unused.

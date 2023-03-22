@@ -10,21 +10,30 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
+	"unicode/utf8"
+)
+
+var (
+	CompletionJob = "completion"
+	TokenizeJob   = "tokenize"
 )
 
 type Job struct {
+	Job      string
 	Prompt   string
 	Params   PredictParams
-	Response chan string
+	Response chan []string
 	Reason   string
 	Err      error
 }
 
-func NewJob(prompt string, params PredictParams) *Job {
+func NewJob(job string, prompt string, params PredictParams) *Job {
 	return &Job{
+		Job:      job,
 		Prompt:   prompt,
 		Params:   params,
-		Response: make(chan string, 128),
+		Response: make(chan []string, 128),
 	}
 }
 
@@ -36,12 +45,13 @@ func (j *Job) Finish(reason string, err error) {
 
 type workerJob struct {
 	params *workerRequest
-	respCh chan string
+	respCh chan []string
 	err    error
 	reason FinishReason
 }
 
 type workerRequest struct {
+	Job    string
 	Prompt string
 	PP     PredictParams
 }
@@ -53,7 +63,7 @@ func (r workerRequest) Encode() []byte {
 }
 
 type workerResponse struct {
-	Text   string
+	Text   []string
 	Finish bool
 	Reason string
 	Err    string
@@ -131,7 +141,7 @@ func (w *Worker) handleConn(conn net.Conn) {
 func (w *Worker) handleRequest(conn net.Conn, p *workerRequest) {
 	job := &workerJob{
 		params: p,
-		respCh: make(chan string, 128),
+		respCh: make(chan []string, 128),
 	}
 	w.jobCh <- job
 	for text := range job.respCh {
@@ -148,7 +158,7 @@ func (w *Worker) handleRequest(conn net.Conn, p *workerRequest) {
 		errMsg = job.err.Error()
 	}
 	item := workerResponse{
-		Text:   "",
+		Text:   []string{},
 		Finish: true,
 		Err:    errMsg,
 		Reason: job.reason.String(),
@@ -157,9 +167,39 @@ func (w *Worker) handleRequest(conn net.Conn, p *workerRequest) {
 }
 
 func (w *Worker) runJob(job *workerJob) {
+	switch job.params.Job {
+	case CompletionJob:
+		w.runJobCompletion(job)
+	case TokenizeJob:
+		w.runJobTokenize(job)
+	default:
+		job.err = errors.New("Invalid job")
+		job.reason = PROMPT_ERR
+		close(job.respCh)
+	}
+}
+
+func (w *Worker) runJobTokenize(job *workerJob) {
+	ret := w.Model.TokenizePrompt(job.params.Prompt)
+	job.respCh <- ret
+	job.err = nil
+	job.reason = PROMPT_FINISH
+	close(job.respCh)
+}
+
+func (w *Worker) runJobCompletion(job *workerJob) {
+	var buffer strings.Builder
 	reason, err := w.Model.Predict(job.params.PP, job.params.Prompt, func(word string) {
-		job.respCh <- word
+		buffer.WriteString(word)
+		bstr := buffer.String()
+		if utf8.ValidString(bstr) {
+			job.respCh <- []string{bstr}
+			buffer.Reset()
+		}
 	})
+	if buffer.Len() > 0 {
+		job.respCh <- []string{buffer.String()}
+	}
 	job.err = err
 	job.reason = reason
 	close(job.respCh)
@@ -200,6 +240,7 @@ func (c *workerClient) processJob(job *Job) {
 		return
 	}
 	req := workerRequest{
+		Job:    job.Job,
 		Prompt: job.Prompt,
 		PP:     job.Params,
 	}
@@ -259,9 +300,10 @@ type WorkerManager struct {
 	threads    int
 	workers    []*workerClient
 	jobCh      chan *Job
+	debug      bool
 }
 
-func NewWorkerManager(execFile string, modelPath string, numWorkers int, ctxSize int, threads int) *WorkerManager {
+func NewWorkerManager(execFile string, modelPath string, numWorkers int, ctxSize int, threads int, debug bool) *WorkerManager {
 	return &WorkerManager{
 		execFile:   execFile,
 		numWorkers: numWorkers,
@@ -270,13 +312,19 @@ func NewWorkerManager(execFile string, modelPath string, numWorkers int, ctxSize
 		threads:    threads,
 		workers:    make([]*workerClient, numWorkers),
 		jobCh:      make(chan *Job),
+		debug:      debug,
 	}
 }
 
 func (m *WorkerManager) StartWorkers() error {
 	for i := 0; i < m.numWorkers; i++ {
 		sockFile := fmt.Sprintf("/tmp/ggml-worker.%d.sock", i)
-		go m.startWorkerProcess(i, sockFile)
+		if m.debug {
+			log.Printf("Start worker using below command:")
+			log.Printf("%s -M worker -t %d -m %s -S %s -c %d", m.execFile, m.threads, m.modelPath, sockFile, m.ctxSize)
+		} else {
+			go m.startWorkerProcess(i, sockFile)
+		}
 		client := &workerClient{
 			id:       i,
 			sockFile: sockFile,

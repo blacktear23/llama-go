@@ -32,6 +32,7 @@ func main() {
 		mode       string
 		sockFile   string
 		workers    int
+		debug      bool
 	)
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	flags.StringVar(&modelPath, "m", "", "path to q4_0.bin model file to load")
@@ -42,6 +43,7 @@ func main() {
 	flags.IntVar(&seed, "s", -1, "seed")
 	flags.IntVar(&nctx, "c", 2048, "context size")
 	flags.IntVar(&workers, "w", 2, "Number workers")
+	flags.BoolVar(&debug, "d", false, "Debug enabler")
 	err := flags.Parse(os.Args[1:])
 	if err != nil {
 		panic(err)
@@ -63,7 +65,7 @@ func main() {
 	case "worker":
 		runWorkerMode(sockFile, modelPath, threads, seed, nctx)
 	case "master":
-		runMasterMode(execFile, listenAddr, staticPath, workers, modelPath, threads, seed, nctx)
+		runMasterMode(execFile, listenAddr, staticPath, workers, modelPath, threads, seed, nctx, debug)
 	}
 }
 
@@ -83,8 +85,8 @@ func runWorkerMode(sockFile string, modelPath string, threads int, seed int, nct
 	}
 }
 
-func runMasterMode(execFile string, listenAddr string, staticPath string, workers int, modelPath string, threads int, seed int, nctx int) {
-	wm := NewWorkerManager(execFile, modelPath, workers, nctx, threads)
+func runMasterMode(execFile string, listenAddr string, staticPath string, workers int, modelPath string, threads int, seed int, nctx int, debug bool) {
+	wm := NewWorkerManager(execFile, modelPath, workers, nctx, threads, debug)
 	wm.StartWorkers()
 
 	info := SystemInfo()
