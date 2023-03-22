@@ -33,6 +33,7 @@ func main() {
 		sockFile   string
 		workers    int
 		debug      bool
+		nparts     int
 	)
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	flags.StringVar(&modelPath, "m", "", "path to q4_0.bin model file to load")
@@ -43,6 +44,7 @@ func main() {
 	flags.IntVar(&seed, "s", -1, "seed")
 	flags.IntVar(&nctx, "c", 2048, "context size")
 	flags.IntVar(&workers, "w", 2, "Number workers")
+	flags.IntVar(&nparts, "n", -1, "Number model part files")
 	flags.BoolVar(&debug, "d", false, "Debug enabler")
 	err := flags.Parse(os.Args[1:])
 	if err != nil {
@@ -63,14 +65,14 @@ func main() {
 
 	switch mode {
 	case "worker":
-		runWorkerMode(sockFile, modelPath, threads, seed, nctx)
+		runWorkerMode(sockFile, modelPath, threads, seed, nctx, nparts)
 	case "master":
 		runMasterMode(execFile, listenAddr, staticPath, workers, modelPath, threads, seed, nctx, debug)
 	}
 }
 
-func runWorkerMode(sockFile string, modelPath string, threads int, seed int, nctx int) {
-	model := NewGGMLModel(modelPath, nctx, threads)
+func runWorkerMode(sockFile string, modelPath string, threads int, seed int, nctx int, nparts int) {
+	model := NewGGMLModel(modelPath, nctx, threads, nparts)
 	err := model.Load()
 	if err != nil {
 		log.Println("Cannot Load Model:", err)

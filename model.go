@@ -80,14 +80,16 @@ func DefaultPredictParams(tokens int) PredictParams {
 type GGMLModel struct {
 	path    string
 	nctx    int
+	nParts  int
 	threads int
 	state   unsafe.Pointer
 }
 
-func NewGGMLModel(path string, nctx int, threads int) *GGMLModel {
+func NewGGMLModel(path string, nctx int, threads int, nParts int) *GGMLModel {
 	return &GGMLModel{
 		path:    path,
 		nctx:    nctx,
+		nParts:  nParts,
 		threads: threads,
 	}
 }
@@ -101,7 +103,7 @@ func (m *GGMLModel) Load() error {
 	modelPath := C.CString(m.path)
 	m.state = C.llama_allocate_state()
 	fmt.Printf("Loading model %s...\n", m.path)
-	result := C.llama_bootstrap(modelPath, m.state, C.int(m.nctx))
+	result := C.llama_bootstrap(modelPath, m.state, C.int(m.nctx), C.int(m.nParts))
 	if result != 0 {
 		return errors.New("Bootstrap got error")
 	}

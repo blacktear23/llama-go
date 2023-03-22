@@ -96,7 +96,7 @@ struct llama_state {
 };
 
 // load the model's weights from a file
-bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab & vocab, int n_ctx) {
+bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab & vocab, int n_ctx, int n_parts) {
     std::vector<char> f_buf(1024*1024);
 
     auto fin = std::ifstream(fname, std::ios::binary);
@@ -117,7 +117,6 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
     }
 
     int n_ff = 0;
-    int n_parts = 0;
 
     // load hparams
     {
@@ -135,7 +134,9 @@ bool llama_model_load(const std::string & fname, llama_model & model, gpt_vocab 
         hparams.n_ctx = n_ctx;
 
         n_ff = ((2*(4*hparams.n_embd)/3 + hparams.n_mult - 1)/hparams.n_mult)*hparams.n_mult;
-        n_parts = LLAMA_N_PARTS.at(hparams.n_embd);
+        if (n_parts < 1) {
+            n_parts = LLAMA_N_PARTS.at(hparams.n_embd);
+        }
     }
 
     // load vocab
@@ -755,13 +756,13 @@ char * llama_print_system_info(void) {
 }
 
 // load the model
-int llama_bootstrap(const char *model_path, void* state_pr, int32_t n_ctx)
+int llama_bootstrap(const char *model_path, void* state_pr, int32_t n_ctx, int32_t n_parts)
 {
         ggml_time_init();
         llama_state* state = (llama_state*) state_pr;
 
         const int64_t t_start_us = ggml_time_us();
-        if (!llama_model_load(model_path, state->model, state->vocab, n_ctx)) {
+        if (!llama_model_load(model_path, state->model, state->vocab, n_ctx, n_parts)) {
             fprintf(stderr, "%s: failed to load model from '%s'\n", __func__, model_path);
             return 1;
         }
