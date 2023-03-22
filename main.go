@@ -67,7 +67,7 @@ func main() {
 	case "worker":
 		runWorkerMode(sockFile, modelPath, threads, seed, nctx, nparts)
 	case "master":
-		runMasterMode(execFile, listenAddr, staticPath, workers, modelPath, threads, seed, nctx, debug)
+		runMasterMode(execFile, listenAddr, staticPath, workers, modelPath, threads, seed, nctx, nparts, debug)
 	}
 }
 
@@ -87,8 +87,8 @@ func runWorkerMode(sockFile string, modelPath string, threads int, seed int, nct
 	}
 }
 
-func runMasterMode(execFile string, listenAddr string, staticPath string, workers int, modelPath string, threads int, seed int, nctx int, debug bool) {
-	wm := NewWorkerManager(execFile, modelPath, workers, nctx, threads, debug)
+func runMasterMode(execFile string, listenAddr string, staticPath string, workers int, modelPath string, threads int, seed int, nctx int, nparts int, debug bool) {
+	wm := NewWorkerManager(execFile, modelPath, workers, nctx, nparts, threads, debug)
 	wm.StartWorkers()
 
 	info := SystemInfo()

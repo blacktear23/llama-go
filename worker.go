@@ -297,18 +297,20 @@ type WorkerManager struct {
 	modelPath  string
 	numWorkers int
 	ctxSize    int
+	nParts     int
 	threads    int
 	workers    []*workerClient
 	jobCh      chan *Job
 	debug      bool
 }
 
-func NewWorkerManager(execFile string, modelPath string, numWorkers int, ctxSize int, threads int, debug bool) *WorkerManager {
+func NewWorkerManager(execFile string, modelPath string, numWorkers int, ctxSize int, nParts int, threads int, debug bool) *WorkerManager {
 	return &WorkerManager{
 		execFile:   execFile,
 		numWorkers: numWorkers,
 		modelPath:  modelPath,
 		ctxSize:    ctxSize,
+		nParts:     nParts,
 		threads:    threads,
 		workers:    make([]*workerClient, numWorkers),
 		jobCh:      make(chan *Job),
@@ -321,7 +323,7 @@ func (m *WorkerManager) StartWorkers() error {
 		sockFile := fmt.Sprintf("/tmp/ggml-worker.%d.sock", i)
 		if m.debug {
 			log.Printf("Start worker using below command:")
-			log.Printf("%s -M worker -t %d -m %s -S %s -c %d", m.execFile, m.threads, m.modelPath, sockFile, m.ctxSize)
+			log.Printf("%s -M worker -t %d -m %s -S %s -c %d -n %d", m.execFile, m.threads, m.modelPath, sockFile, m.ctxSize, m.nParts)
 		} else {
 			go m.startWorkerProcess(i, sockFile)
 		}
@@ -348,6 +350,7 @@ func (m *WorkerManager) startWorkerProcess(id int, sockFile string) {
 			"-m", m.modelPath,
 			"-S", sockFile,
 			"-c", fmt.Sprintf("%d", m.ctxSize),
+			"-n", fmt.Sprintf("%d", m.nParts),
 		)
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
