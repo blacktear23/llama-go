@@ -68,7 +68,7 @@ func (s *APIServer) TokenizePrompt(c *gin.Context) {
 		return
 	}
 	pp := DefaultPredictParams(512)
-	job := NewJob(TokenizeJob, prompt, pp)
+	job := NewJob(TokenizeJob, "", prompt, pp)
 	s.WorkerMgr.DispatchJob(job)
 	var resp []string
 	for words := range job.Response {
@@ -89,6 +89,7 @@ func (s *APIServer) TokenizePrompt(c *gin.Context) {
 }
 
 type CompletionParams struct {
+	History       string  `json:"history,omitempty"`
 	Prompt        string  `json:"prompt"`
 	Tokens        int     `json:"tokens"`
 	TopK          int     `json:"top_k,omitempty"`
@@ -146,7 +147,7 @@ func (s *APIServer) Completion(c *gin.Context) {
 		return
 	}
 	pp := reqParams.ToPredictParams(s.Seed)
-	job := NewJob(CompletionJob, reqParams.Prompt, pp)
+	job := NewJob(CompletionJob, reqParams.History, reqParams.Prompt, pp)
 	s.WorkerMgr.DispatchJob(job)
 	if reqParams.Stream {
 		c.Stream(func(w io.Writer) bool {
@@ -256,7 +257,7 @@ func (s *APIServer) StreamCompletion(c *gin.Context) {
 			continue
 		}
 		pp := reqParams.ToPredictParams(s.Seed)
-		job := NewJob(CompletionJob, reqParams.Prompt, pp)
+		job := NewJob(CompletionJob, reqParams.History, reqParams.Prompt, pp)
 		job.NPast = npast
 		job.MemPerToken = memPerToken
 		s.WorkerMgr.DispatchJob(job)

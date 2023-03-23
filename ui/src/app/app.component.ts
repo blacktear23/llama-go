@@ -19,8 +19,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
   temp: number|null = 0.9;
   repeatPenalty: number|null = 1.8;
   repeatLastN: number|null = 128;
-  numHistoryPrompts = 1;
-  maxHistoryPromptSize = 128;
+  numHistoryPrompts = 6;
 
   prompt: string = '';
 
@@ -64,6 +63,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
     this.setParameterToStorage('temp', this.temp);
     this.setParameterToStorage('repeat_penalty', this.repeatPenalty);
     this.setParameterToStorage('repeat_last_n', this.repeatLastN);
+    this.setParameterToStorage('num_history_prompts', this.numHistoryPrompts);
   }
 
   private loadParameters() {
@@ -73,6 +73,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
     this.temp = this.getParameterFromStorage('temp', 0.9);
     this.repeatPenalty = this.getParameterFromStorage('repeat_penalty', 1.8);
     this.repeatLastN = this.getParameterFromStorage('repeat_last_n', 256);
+    this.numHistoryPrompts = this.getParameterFromStorage('num_history_prompts', 6);
   }
 
   private scrollToBottom() {
@@ -216,21 +217,21 @@ export class AppComponent implements OnInit, AfterViewChecked {
   }
 
   private createParameter(): PromptRequest {
-    /*
     var prompts: string[] = [];
     for (var i = 0; i < this.min(this.numHistoryPrompts, this.messages.length); i++) {
       let idx = this.messages.length - 1 - i;
       var text = this.messages[idx].text;
-      if (text.length > this.maxHistoryPromptSize) {
-        text = text.slice(0, this.maxHistoryPromptSize);
-      }
       prompts.push(text);
     }
     prompts.reverse()
-    */
-    let prompt_msg = this.messages[this.messages.length - 1].text;
+    let prompt_msg = prompts[prompts.length-1];
+    var history = '';
+    for (i = 0; i < prompts.length-1; i++) {
+      history += prompts[i] + '\n';
+    }
     return {
       prompt: prompt_msg + '\n',
+      history: history,
       stream: true,
       tokens: (typeof this.maxTokens === 'string') ? null : this.maxTokens,
       top_k: (typeof this.topK === 'string') ? null : this.topK,

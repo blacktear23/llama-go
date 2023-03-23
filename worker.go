@@ -21,6 +21,7 @@ var (
 
 type Job struct {
 	Job         string
+	History     string
 	Prompt      string
 	NPast       int
 	MemPerToken int64
@@ -30,9 +31,10 @@ type Job struct {
 	Err         error
 }
 
-func NewJob(job string, prompt string, params PredictParams) *Job {
+func NewJob(job string, history string, prompt string, params PredictParams) *Job {
 	return &Job{
 		Job:      job,
+		History:  history,
 		Prompt:   prompt,
 		Params:   params,
 		Response: make(chan []string, 128),
@@ -56,6 +58,7 @@ type workerJob struct {
 
 type workerRequest struct {
 	Job         string
+	History     string
 	Prompt      string
 	PP          PredictParams
 	NPast       int
@@ -205,7 +208,7 @@ func (w *Worker) runJobCompletion(job *workerJob) {
 		nPast       int   = 0
 		memPerToken int64 = 0
 	)
-	reason, err := w.Model.Predict(job.params.PP, job.params.Prompt, job.npast, job.memPerToken, func(word string, npast int, mem_per_token int64) {
+	reason, err := w.Model.Predict(job.params.PP, job.params.History, job.params.Prompt, job.npast, job.memPerToken, func(word string, npast int, mem_per_token int64) {
 		buffer.WriteString(word)
 		bstr := buffer.String()
 		if utf8.ValidString(bstr) {
@@ -261,6 +264,7 @@ func (c *workerClient) processJob(job *Job) {
 	}
 	req := workerRequest{
 		Job:         job.Job,
+		History:     job.History,
 		Prompt:      job.Prompt,
 		PP:          job.Params,
 		NPast:       job.NPast,

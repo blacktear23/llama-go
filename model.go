@@ -111,10 +111,11 @@ func (m *GGMLModel) Load() error {
 	return nil
 }
 
-func (m *GGMLModel) Predict(params PredictParams, text string, npast int, memPerToken int64, cb WordCallbackFn) (FinishReason, error) {
+func (m *GGMLModel) Predict(params PredictParams, history string, text string, npast int, memPerToken int64, cb WordCallbackFn) (FinishReason, error) {
 	h := cgo.NewHandle(cb)
 	input := C.CString(text)
-	pparams := C.llama_allocate_params(input,
+	hist := C.CString(history)
+	pparams := C.llama_allocate_params(hist, input,
 		C.int(params.Seed),
 		C.int(m.threads),
 		C.int(params.Tokens),

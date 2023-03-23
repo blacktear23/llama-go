@@ -1,5 +1,6 @@
 export interface PromptRequest {
     prompt: string;
+    history: string;
     stream: boolean;
     tokens: number|null;
     top_k: number|null;

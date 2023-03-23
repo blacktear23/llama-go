@@ -793,7 +793,7 @@ int llama_predict(void* params_ptr, void* state_pr, int n_past, size_t mem_per_t
         params.prompt.insert(0, 1, ' ');
     }
     // tokenize the prompt
-    std::vector<gpt_vocab::id> embd_inp = ::llama_tokenize(vocab, params.prompt, true);
+    std::vector<gpt_vocab::id> embd_inp = ::llama_tokenize(vocab, params.prompt, n_past == 0);
     size_t input_size = embd_inp.size();
 
     params.n_predict = std::min(params.n_predict, model.hparams.n_ctx - (int) embd_inp.size());
@@ -811,6 +811,14 @@ int llama_predict(void* params_ptr, void* state_pr, int n_past, size_t mem_per_t
     int last_n_size = params.repeat_last_n;
     std::vector<gpt_vocab::id> last_n_tokens(last_n_size);
     std::fill(last_n_tokens.begin(), last_n_tokens.end(), 0);
+    // Perform history chats
+    if (params.history.size() > 0) {
+        std::vector<gpt_vocab::id> history_inp = ::llama_tokenize(vocab, params.history, false);
+        for (auto id : history_inp) {
+            last_n_tokens.erase(last_n_tokens.begin());
+            last_n_tokens.push_back(id);
+        }
+    }
 
     int remaining_tokens = params.n_predict;
     // int remaining_tokens = model.hparams.n_ctx - embd_inp.size();
@@ -904,7 +912,7 @@ void* llama_allocate_state() {
     return new llama_state;
 }
 
-void* llama_allocate_params(const char *prompt, int seed, int threads, int tokens, int top_k,
+void* llama_allocate_params(const char *history, const char *prompt, int seed, int threads, int tokens, int top_k,
                             float top_p, float temp, float repeat_penalty, int repeat_last_n, int n_batch) {
     gpt_params* params = new gpt_params;
     params->seed = seed;
@@ -918,6 +926,7 @@ void* llama_allocate_params(const char *prompt, int seed, int threads, int token
     params->repeat_penalty = repeat_penalty;
 
     params->prompt = prompt;
+    params->history = history;
     params->n_batch = n_batch;
     return params;
 }

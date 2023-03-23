@@ -51,39 +51,45 @@
       <ng-container *nzModalContent>
         <form nz-form>
           <nz-form-item>
-            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="max-tokens">Max Tokens</nz-form-label>
+            <nz-form-label [nzSm]="8" [nzXs]="24" nzFor="max-tokens">Max Tokens</nz-form-label>
             <nz-form-control [nzSm]="14" [nzXs]="24">
               <nz-input-number nz-input id="max-tokens" name="max-tokens" [(ngModel)]="maxTokens" [nzStep]="1"/>
             </nz-form-control>
           </nz-form-item>
           <nz-form-item>
-            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="top-k">Top K</nz-form-label>
+            <nz-form-label [nzSm]="8" [nzXs]="24" nzFor="top-k">Top K</nz-form-label>
             <nz-form-control [nzSm]="14" [nzXs]="24">
               <nz-input-number nz-input id="top-k" name="top-k" [(ngModel)]="topK" [nzStep]="1"/>
             </nz-form-control>
           </nz-form-item>
           <nz-form-item>
-            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="top-p">Top P</nz-form-label>
+            <nz-form-label [nzSm]="8" [nzXs]="24" nzFor="top-p">Top P</nz-form-label>
             <nz-form-control [nzSm]="14" [nzXs]="24">
               <nz-input-number nz-input id="top-p" name="top-p" [(ngModel)]="topP" [nzStep]="0.01"/>
             </nz-form-control>
           </nz-form-item>
           <nz-form-item>
-            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="temp">Temperature</nz-form-label>
+            <nz-form-label [nzSm]="8" [nzXs]="24" nzFor="temp">Temperature</nz-form-label>
             <nz-form-control [nzSm]="14" [nzXs]="24">
               <nz-input-number nz-input id="temp" name="temp" [(ngModel)]="temp" [nzStep]="0.01"/>
             </nz-form-control>
           </nz-form-item>
           <nz-form-item>
-            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="repeat-penalty">Repeat Penalty</nz-form-label>
+            <nz-form-label [nzSm]="8" [nzXs]="24" nzFor="repeat-penalty">Repeat Penalty</nz-form-label>
             <nz-form-control [nzSm]="14" [nzXs]="24">
               <nz-input-number nz-input id="repeat-penalty" name="repeat-penalty" [(ngModel)]="repeatPenalty" [nzStep]="0.1"/>
             </nz-form-control>
           </nz-form-item>
           <nz-form-item>
-            <nz-form-label [nzSm]="6" [nzXs]="24" nzRequired nzFor="repeat-lastn">Repeat LastN</nz-form-label>
+            <nz-form-label [nzSm]="8" [nzXs]="24" nzFor="repeat-lastn">Repeat LastN</nz-form-label>
             <nz-form-control [nzSm]="14" [nzXs]="24">
               <nz-input-number nz-input id="repeat-lastn" name="repeat-lastn" [(ngModel)]="repeatLastN" [nzStep]="1"/>
+            </nz-form-control>
+          </nz-form-item>
+          <nz-form-item>
+            <nz-form-label [nzSm]="8" [nzXs]="24" nzFor="num-history-prompts">Number History Charts</nz-form-label>
+            <nz-form-control [nzSm]="14" [nzXs]="24">
+              <nz-input-number nz-input id="num-history-prompts" name="num-history-prompts" [(ngModel)]="numHistoryPrompts" [nzStep]="1"/>
             </nz-form-control>
           </nz-form-item>
         </form>
