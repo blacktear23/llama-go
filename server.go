@@ -205,6 +205,10 @@ func (s *APIServer) StreamCompletion(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	var (
+		npast       int   = 0
+		memPerToken int64 = 0
+	)
 	for {
 		tp, payload, err := conn.ReadMessage()
 		if err != nil {
@@ -253,6 +257,8 @@ func (s *APIServer) StreamCompletion(c *gin.Context) {
 		}
 		pp := reqParams.ToPredictParams(s.Seed)
 		job := NewJob(CompletionJob, reqParams.Prompt, pp)
+		job.NPast = npast
+		job.MemPerToken = memPerToken
 		s.WorkerMgr.DispatchJob(job)
 		for word := range job.Response {
 			rmsg := WsResponseMsg{
@@ -282,6 +288,10 @@ func (s *APIServer) StreamCompletion(c *gin.Context) {
 			log.Println("Write web socket got error", err)
 			return
 		}
+		// Save last NPast
+		npast = job.NPast
+		memPerToken = job.MemPerToken
+		log.Println("New NPast:", npast, "MemPerToken:", memPerToken)
 	}
 }
 

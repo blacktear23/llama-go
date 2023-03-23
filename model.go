@@ -38,20 +38,20 @@ func (r FinishReason) String() string {
 }
 
 //export prompt_callback_bridge
-func prompt_callback_bridge(h C.uintptr_t, word *C.char) {
+func prompt_callback_bridge(h C.uintptr_t, word *C.char, npast C.int, mem_per_token C.size_t) {
 	data := C.GoString(word)
 	fn := cgo.Handle(h).Value().(WordCallbackFn)
-	fn(data)
+	fn(data, int(npast), int64(mem_per_token))
 }
 
 //export tokenizer_callback_bridge
 func tokenizer_callback_bridge(h C.uintptr_t, word *C.char) {
 	data := C.GoString(word)
 	fn := cgo.Handle(h).Value().(WordCallbackFn)
-	fn(data)
+	fn(data, 0, 0)
 }
 
-type WordCallbackFn func(data string)
+type WordCallbackFn func(data string, npast int, mem_per_token int64)
 
 type PredictParams struct {
 	Seed          int
@@ -111,7 +111,7 @@ func (m *GGMLModel) Load() error {
 	return nil
 }
 
-func (m *GGMLModel) Predict(params PredictParams, text string, cb WordCallbackFn) (FinishReason, error) {
+func (m *GGMLModel) Predict(params PredictParams, text string, npast int, memPerToken int64, cb WordCallbackFn) (FinishReason, error) {
 	h := cgo.NewHandle(cb)
 	input := C.CString(text)
 	pparams := C.llama_allocate_params(input,
@@ -128,7 +128,7 @@ func (m *GGMLModel) Predict(params PredictParams, text string, cb WordCallbackFn
 	defer func() {
 		C.llama_free_params(pparams)
 	}()
-	result := C.llama_predict(pparams, m.state, C.uintptr_t(h))
+	result := C.llama_predict(pparams, m.state, C.int(npast), C.size_t(memPerToken), C.uintptr_t(h))
 	switch result {
 	case 0:
 		return PROMPT_STOP, nil
@@ -142,7 +142,7 @@ func (m *GGMLModel) Predict(params PredictParams, text string, cb WordCallbackFn
 
 func (m *GGMLModel) TokenizePrompt(prompt string) []string {
 	ret := []string{}
-	cb := func(word string) {
+	cb := func(word string, npast int, memPerToken int64) {
 		ret = append(ret, word)
 	}
 	h := cgo.NewHandle(WordCallbackFn(cb))

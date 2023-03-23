@@ -19,7 +19,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
   temp: number|null = 0.9;
   repeatPenalty: number|null = 1.8;
   repeatLastN: number|null = 128;
-  numHistoryPrompts = 3;
+  numHistoryPrompts = 1;
   maxHistoryPromptSize = 128;
 
   prompt: string = '';
@@ -216,6 +216,7 @@ export class AppComponent implements OnInit, AfterViewChecked {
   }
 
   private createParameter(): PromptRequest {
+    /*
     var prompts: string[] = [];
     for (var i = 0; i < this.min(this.numHistoryPrompts, this.messages.length); i++) {
       let idx = this.messages.length - 1 - i;
@@ -226,8 +227,10 @@ export class AppComponent implements OnInit, AfterViewChecked {
       prompts.push(text);
     }
     prompts.reverse()
+    */
+    let prompt_msg = this.messages[this.messages.length - 1].text;
     return {
-      prompt: prompts.join('\n') + '\n',
+      prompt: prompt_msg + '\n',
       stream: true,
       tokens: (typeof this.maxTokens === 'string') ? null : this.maxTokens,
       top_k: (typeof this.topK === 'string') ? null : this.topK,

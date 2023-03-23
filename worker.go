@@ -20,12 +20,14 @@ var (
 )
 
 type Job struct {
-	Job      string
-	Prompt   string
-	Params   PredictParams
-	Response chan []string
-	Reason   string
-	Err      error
+	Job         string
+	Prompt      string
+	NPast       int
+	MemPerToken int64
+	Params      PredictParams
+	Response    chan []string
+	Reason      string
+	Err         error
 }
 
 func NewJob(job string, prompt string, params PredictParams) *Job {
@@ -44,16 +46,20 @@ func (j *Job) Finish(reason string, err error) {
 }
 
 type workerJob struct {
-	params *workerRequest
-	respCh chan []string
-	err    error
-	reason FinishReason
+	params      *workerRequest
+	npast       int
+	memPerToken int64
+	respCh      chan []string
+	err         error
+	reason      FinishReason
 }
 
 type workerRequest struct {
-	Job    string
-	Prompt string
-	PP     PredictParams
+	Job         string
+	Prompt      string
+	PP          PredictParams
+	NPast       int
+	MemPerToken int64
 }
 
 func (r workerRequest) Encode() []byte {
@@ -63,10 +69,12 @@ func (r workerRequest) Encode() []byte {
 }
 
 type workerResponse struct {
-	Text   []string
-	Finish bool
-	Reason string
-	Err    string
+	Text        []string
+	Finish      bool
+	Reason      string
+	Err         string
+	NPast       int
+	MemPerToken int64
 }
 
 func (r workerResponse) Encode() []byte {
@@ -140,8 +148,10 @@ func (w *Worker) handleConn(conn net.Conn) {
 
 func (w *Worker) handleRequest(conn net.Conn, p *workerRequest) {
 	job := &workerJob{
-		params: p,
-		respCh: make(chan []string, 128),
+		params:      p,
+		npast:       p.NPast,
+		memPerToken: p.MemPerToken,
+		respCh:      make(chan []string, 128),
 	}
 	w.jobCh <- job
 	for text := range job.respCh {
@@ -158,10 +168,12 @@ func (w *Worker) handleRequest(conn net.Conn, p *workerRequest) {
 		errMsg = job.err.Error()
 	}
 	item := workerResponse{
-		Text:   []string{},
-		Finish: true,
-		Err:    errMsg,
-		Reason: job.reason.String(),
+		Text:        []string{},
+		Finish:      true,
+		Err:         errMsg,
+		Reason:      job.reason.String(),
+		NPast:       job.npast,
+		MemPerToken: job.memPerToken,
 	}
 	conn.Write(item.Encode())
 }
@@ -189,17 +201,25 @@ func (w *Worker) runJobTokenize(job *workerJob) {
 
 func (w *Worker) runJobCompletion(job *workerJob) {
 	var buffer strings.Builder
-	reason, err := w.Model.Predict(job.params.PP, job.params.Prompt, func(word string) {
+	var (
+		nPast       int   = 0
+		memPerToken int64 = 0
+	)
+	reason, err := w.Model.Predict(job.params.PP, job.params.Prompt, job.npast, job.memPerToken, func(word string, npast int, mem_per_token int64) {
 		buffer.WriteString(word)
 		bstr := buffer.String()
 		if utf8.ValidString(bstr) {
 			job.respCh <- []string{bstr}
 			buffer.Reset()
 		}
+		nPast = npast
+		memPerToken = mem_per_token
 	})
 	if buffer.Len() > 0 {
 		job.respCh <- []string{buffer.String()}
 	}
+	job.npast = nPast
+	job.memPerToken = memPerToken
 	job.err = err
 	job.reason = reason
 	close(job.respCh)
@@ -240,9 +260,11 @@ func (c *workerClient) processJob(job *Job) {
 		return
 	}
 	req := workerRequest{
-		Job:    job.Job,
-		Prompt: job.Prompt,
-		PP:     job.Params,
+		Job:         job.Job,
+		Prompt:      job.Prompt,
+		PP:          job.Params,
+		NPast:       job.NPast,
+		MemPerToken: job.MemPerToken,
 	}
 	reqData := req.Encode()
 	_, err = conn.Write(reqData)
@@ -273,6 +295,8 @@ func (c *workerClient) processJob(job *Job) {
 			return
 		}
 		if resp.Finish {
+			job.NPast = resp.NPast
+			job.MemPerToken = resp.MemPerToken
 			if resp.Err == "" {
 				job.Finish(resp.Reason, nil)
 			} else {

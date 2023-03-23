@@ -771,7 +771,7 @@ int llama_bootstrap(const char *model_path, void* state_pr, int32_t n_ctx, int32
         return 0;
 }
 
-int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
+int llama_predict(void* params_ptr, void* state_pr, int n_past, size_t mem_per_token, uintptr_t cb) {
     gpt_params params = *(gpt_params*) params_ptr;
     llama_state state = *(llama_state*) state_pr;
     gpt_vocab vocab = state.vocab;
@@ -783,15 +783,15 @@ int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
     }
     std::mt19937 rng(params.seed);
 
-    int n_past = 0;
-
     state.timing.t_sample_us = 0;
     state.timing.t_predict_us = 0;
 
     std::vector<float> logits;
 
     // Add a space in front of the first character to match OG llama tokenizer behavior
-    params.prompt.insert(0, 1, ' ');
+    if (n_past == 0) {
+        params.prompt.insert(0, 1, ' ');
+    }
     // tokenize the prompt
     std::vector<gpt_vocab::id> embd_inp = ::llama_tokenize(vocab, params.prompt, true);
     size_t input_size = embd_inp.size();
@@ -804,8 +804,9 @@ int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
     std::vector<gpt_vocab::id> embd;
 
     // determine the required inference memory per token:
-    size_t mem_per_token = 0;
-    llama_eval(model, params.n_threads, 0, { 0, 1, 2, 3 }, logits, mem_per_token);
+    if (mem_per_token == 0) {
+        llama_eval(model, params.n_threads, 0, { 0, 1, 2, 3 }, logits, mem_per_token);
+    }
 
     int last_n_size = params.repeat_last_n;
     std::vector<gpt_vocab::id> last_n_tokens(last_n_size);
@@ -886,7 +887,7 @@ int llama_predict(void* params_ptr, void* state_pr, uintptr_t cb) {
                         continue;
                     }
                     const char * word = vocab.id_to_token[id].c_str();
-                    prompt_callback_bridge(cb, const_cast<char*>(word));
+                    prompt_callback_bridge(cb, const_cast<char*>(word), n_past, mem_per_token);
                 }
             }
         }
