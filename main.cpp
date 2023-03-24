@@ -789,11 +789,21 @@ int llama_predict(void* params_ptr, void* state_pr, int n_past, size_t mem_per_t
     std::vector<float> logits;
 
     // Add a space in front of the first character to match OG llama tokenizer behavior
-    if (n_past == 0) {
-        params.prompt.insert(0, 1, ' ');
-    }
+    //if (n_past == 0) {
+    //    params.prompt.insert(0, 1, ' ');
+    //}
     // tokenize the prompt
-    std::vector<gpt_vocab::id> embd_inp = ::llama_tokenize(vocab, params.prompt, n_past == 0);
+    std::vector<gpt_vocab::id> prompt_inp = ::llama_tokenize(vocab, "### Instruction:\n\n", true);
+    std::vector<gpt_vocab::id> response_inp = ::llama_tokenize(vocab, "### Response:\n\n", false);
+    std::vector<gpt_vocab::id> embd_inp;
+
+    if(!params.prompt.empty()) {
+        std::vector<gpt_vocab::id> param_inp = ::llama_tokenize(vocab, params.prompt, n_past == 0);
+        embd_inp.insert(embd_inp.end(), prompt_inp.begin(), prompt_inp.end());
+        embd_inp.insert(embd_inp.end(), param_inp.begin(), param_inp.end());
+        embd_inp.insert(embd_inp.end(), response_inp.begin(), response_inp.end());
+    }
+
     size_t input_size = embd_inp.size();
 
     params.n_predict = std::min(params.n_predict, model.hparams.n_ctx - (int) embd_inp.size());
