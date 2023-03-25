@@ -1,6 +1,11 @@
+export interface Chat {
+    prompt: string;
+    type: string;
+}
+
 export interface PromptRequest {
     prompt: string;
-    history: string;
+    history: Chat[];
     stream: boolean;
     tokens: number|null;
     top_k: number|null;

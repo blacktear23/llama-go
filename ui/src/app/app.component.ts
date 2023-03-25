@@ -1,5 +1,5 @@
 import { AfterViewChecked, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
-import { MessageItem, PromptRequest } from './api.service';
+import { Chat, MessageItem, PromptRequest } from './api.service';
 
 @Component({
   selector: 'app-root',
@@ -217,20 +217,24 @@ export class AppComponent implements OnInit, AfterViewChecked {
   }
 
   private createParameter(): PromptRequest {
-    var prompts: string[] = [];
+    var prompts: Chat[] = [];
     for (var i = 0; i < this.min(this.numHistoryPrompts, this.messages.length); i++) {
       let idx = this.messages.length - 1 - i;
       var text = this.messages[idx].text;
-      prompts.push(text);
+      var tp = (this.messages[idx].role === 'user') ? 'I' : 'R';
+      prompts.push({
+        prompt: text,
+        type: tp,
+      });
     }
     prompts.reverse()
     let prompt_msg = prompts[prompts.length-1];
-    var history = '';
+    var history: Chat[] = [];
     for (i = 0; i < prompts.length-1; i++) {
-      history += prompts[i] + '\n';
+      history.push(prompts[i])
     }
     return {
-      prompt: prompt_msg + '\n',
+      prompt: prompt_msg.prompt,
       history: history,
       stream: true,
       tokens: (typeof this.maxTokens === 'string') ? null : this.maxTokens,

@@ -68,7 +68,7 @@ func (s *APIServer) TokenizePrompt(c *gin.Context) {
 		return
 	}
 	pp := DefaultPredictParams(512)
-	job := NewJob(TokenizeJob, "", prompt, pp)
+	job := NewJob(TokenizeJob, nil, prompt, pp)
 	s.WorkerMgr.DispatchJob(job)
 	var resp []string
 	for words := range job.Response {
@@ -89,7 +89,7 @@ func (s *APIServer) TokenizePrompt(c *gin.Context) {
 }
 
 type CompletionParams struct {
-	History       string  `json:"history,omitempty"`
+	History       []Chat  `json:"history,omitempty"`
 	Prompt        string  `json:"prompt"`
 	Tokens        int     `json:"tokens"`
 	TopK          int     `json:"top_k,omitempty"`

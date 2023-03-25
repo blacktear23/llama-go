@@ -793,8 +793,8 @@ int llama_predict(void* params_ptr, void* state_pr, int n_past, size_t mem_per_t
     //    params.prompt.insert(0, 1, ' ');
     //}
     // tokenize the prompt
-    std::vector<gpt_vocab::id> prompt_inp = ::llama_tokenize(vocab, "### Instruction:\n\n", true);
-    std::vector<gpt_vocab::id> response_inp = ::llama_tokenize(vocab, "### Response:\n\n", false);
+    std::vector<gpt_vocab::id> prompt_inp = ::llama_tokenize(vocab, "\n\n### Instruction:\n\n", true);
+    std::vector<gpt_vocab::id> response_inp = ::llama_tokenize(vocab, "\n\n### Response:\n\n", false);
     std::vector<gpt_vocab::id> embd_inp;
 
     if(!params.prompt.empty()) {

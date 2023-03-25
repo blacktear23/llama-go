@@ -17,11 +17,19 @@ import (
 var (
 	CompletionJob = "completion"
 	TokenizeJob   = "tokenize"
+
+	InstructionType = "I"
+	ResponseType    = "R"
 )
+
+type Chat struct {
+	Prompt string `json:"prompt"`
+	Type   string `json:"type"`
+}
 
 type Job struct {
 	Job         string
-	History     string
+	History     []Chat
 	Prompt      string
 	NPast       int
 	MemPerToken int64
@@ -31,7 +39,7 @@ type Job struct {
 	Err         error
 }
 
-func NewJob(job string, history string, prompt string, params PredictParams) *Job {
+func NewJob(job string, history []Chat, prompt string, params PredictParams) *Job {
 	return &Job{
 		Job:      job,
 		History:  history,
@@ -58,7 +66,7 @@ type workerJob struct {
 
 type workerRequest struct {
 	Job         string
-	History     string
+	History     []Chat
 	Prompt      string
 	PP          PredictParams
 	NPast       int
@@ -202,13 +210,29 @@ func (w *Worker) runJobTokenize(job *workerJob) {
 	close(job.respCh)
 }
 
+func (w *Worker) processHistory(chats []Chat) string {
+	var ret strings.Builder
+	for _, chat := range chats {
+		switch chat.Type {
+		case InstructionType:
+			ret.WriteString("\n\n### Instruction:\n\n")
+			ret.WriteString(chat.Prompt)
+		case ResponseType:
+			ret.WriteString("\n\n### Response:\n\n")
+			ret.WriteString(chat.Prompt)
+		}
+	}
+	return ret.String()
+}
+
 func (w *Worker) runJobCompletion(job *workerJob) {
 	var buffer strings.Builder
 	var (
 		nPast       int   = 0
 		memPerToken int64 = 0
 	)
-	reason, err := w.Model.Predict(job.params.PP, job.params.History, job.params.Prompt, job.npast, job.memPerToken, func(word string, npast int, mem_per_token int64) {
+	history := w.processHistory(job.params.History)
+	reason, err := w.Model.Predict(job.params.PP, history, job.params.Prompt, job.npast, job.memPerToken, func(word string, npast int, mem_per_token int64) {
 		buffer.WriteString(word)
 		bstr := buffer.String()
 		if utf8.ValidString(bstr) {
